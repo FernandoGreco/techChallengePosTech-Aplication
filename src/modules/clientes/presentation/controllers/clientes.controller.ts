@@ -57,7 +57,12 @@ export class ClientesController {
   }
 
   @Get('documento/:documento')
-  @ApiOperation({ summary: 'Buscar cliente por documento (CPF/CNPJ)' })
+  @ApiOperation({
+    summary: 'Buscar cliente por documento (CPF/CNPJ)',
+    description:
+      'Usado pela Lambda de autenticação (repo 1) para validar existência e ' +
+      'status (ativo) do cliente antes de emitir o JWT — ver docs/rfc/RFC-003.',
+  })
   @ApiResponse({ status: 200, description: 'Cliente encontrado' })
   @ApiResponse({ status: 404, description: 'Cliente não encontrado' })
   async buscarPorDocumento(@Param('documento') documento: string) {

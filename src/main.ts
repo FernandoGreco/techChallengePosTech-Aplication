@@ -26,7 +26,10 @@ async function bootstrap() {
   const config = new DocumentBuilder()
     .setTitle('Oficina Mecânica API')
     .setDescription(
-      'API do sistema de gestão para oficina mecânica - MVP acadêmico',
+      'API do sistema de gestão para oficina mecânica.\n\n' +
+        '**Autenticação:** clientes obtêm JWT via Lambda (auth por CPF); ' +
+        'staff (ADMIN/ATENDENTE/MECANICO) usa POST /auth/login. ' +
+        'Ver docs/rfc/RFC-003.',
     )
     .setVersion('1.0')
     .addBearerAuth()

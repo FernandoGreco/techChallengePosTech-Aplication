@@ -11,7 +11,12 @@ export class AuthController {
 
   @Public()
   @Post('login')
-  @ApiOperation({ summary: 'Realizar login e obter token JWT' })
+  @ApiOperation({
+    summary: 'Login de staff (ADMIN/ATENDENTE/MECANICO)',
+    description:
+      'Apenas para usuários internos. Clientes autenticam via Lambda (CPF) — ' +
+      'ver docs/rfc/RFC-003.',
+  })
   @ApiBody({ type: LoginDto })
   @ApiResponse({ status: 200, description: 'Login realizado com sucesso' })
   @ApiResponse({ status: 401, description: 'Credenciais inválidas' })
