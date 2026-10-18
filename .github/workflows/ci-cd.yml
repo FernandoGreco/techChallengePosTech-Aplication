@@ -1,0 +1,155 @@
+name: Esteira CI/CD - Tech Challenge PosTech
+
+on:
+  push:
+    branches: [ main, develop, "feature/*" ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  # ─────────────────────────────────────────────────────────────────────────────
+  # 1. CONTINUOUS INTEGRATION (CI) - Integracao Continua
+  # ─────────────────────────────────────────────────────────────────────────────
+  ci:
+    name: "🔍 Integracao Continua (CI) - Testes & Qualidade"
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: oficina_mecanica_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: "📂 [CI 1/9] Obter codigo-fonte do repositorio"
+        uses: actions/checkout@v4
+
+      - name: "⚙️ [CI 2/9] Configurar ambiente Node.js 20"
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: "📦 [CI 3/9] Instalar dependencias do projeto"
+        run: |
+          echo "🚀 Instalando dependencias com npm ci..."
+          npm ci
+
+      - name: "🗄️ [CI 4/9] Gerar Cliente do Prisma ORM"
+        run: |
+          echo "🚀 Gerando os arquivos do Prisma Client..."
+          npx prisma generate
+
+      - name: "🧹 [CI 5/9] Validar regras de qualidade de codigo (ESLint)"
+        run: |
+          echo "🔍 Verificando padroes de codigo e linter..."
+          npm run lint
+
+      - name: "🧪 [CI 6/9] Executar testes unitarios e de cobertura (Jest)"
+        run: |
+          echo "🧪 Rodando testes unitarios..."
+          npm run test
+          echo "📊 Gerando relatorio de cobertura..."
+          npm run test:cov
+
+      - name: "🌐 [CI 7/9] Executar testes de integracao (E2E)"
+        env:
+          DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/oficina_mecanica_test?schema=public"
+          JWT_SECRET: "ci-cd-test-jwt-secret"
+          JWT_EXPIRES_IN: "1d"
+          PORT: 3000
+        run: |
+          echo "🗄️ Aplicando schema no banco de dados temporario PostgreSQL..."
+          npx prisma db push
+          echo "🌐 Executando testes E2E..."
+          npm run test:e2e
+
+      - name: "🏗️ [CI 8/9] Validar compilacao do TypeScript (Build)"
+        run: |
+          echo "🏗️ Compilando aplicacao NestJS..."
+          npm run build
+
+      - name: "🐳 [CI 9/9] Testar construcao da Imagem Docker"
+        run: |
+          echo "🐳 Testando docker build da imagem..."
+          docker build -t oficina-api:test .
+          echo "✅ Validacao da imagem Docker concluida!"
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # 2. CONTINUOUS DEPLOYMENT (CD) - Publicacao da Imagem
+  # ─────────────────────────────────────────────────────────────────────────────
+  cd:
+    name: "🚀 Entrega Continua (CD) - Publicacao da Imagem & K8s"
+    needs: ci
+    if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop') && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: "📂 [CD 1/5] Obter codigo-fonte do repositorio"
+        uses: actions/checkout@v4
+
+      - name: "🛠️ [CD 2/5] Configurar ferramentas do Docker (QEMU & Buildx)"
+        uses: docker/setup-qemu-action@v3
+
+      - name: "🛠️ Configurar Docker Buildx"
+        uses: docker/setup-buildx-action@v3
+
+      - name: "🔑 [CD 3/5] Autenticar no GitHub Container Registry (GHCR)"
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: "🏷️ [CD 4/5] Gerar metadados e tags para a Imagem Docker"
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=sha,format=short
+            type=ref,event=branch
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=raw,value=dev,enable=${{ github.ref == 'refs/heads/develop' }}
+
+      - name: "🚀 [CD 5/5] Construir e publicar Imagem Docker no GHCR"
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+      - name: "☸️ Validar sintaxe dos manifestos Kubernetes (K8s)"
+        run: |
+          echo "☸️ Validando sintaxe dos manifestos Kubernetes na pasta /k8s..."
+          node -e "
+            const fs = require('fs');
+            const path = require('path');
+            function getFiles(dir) {
+              const subdirs = fs.readdirSync(dir);
+              const files = subdirs.map((subdir) => {
+                const res = path.resolve(dir, subdir);
+                return fs.statSync(res).isDirectory() ? getFiles(res) : res;
+              });
+              return files.reduce((a, f) => a.concat(f), []);
+            }
+            const files = getFiles('./k8s').filter(f => f.endsWith('.yaml') || f.endsWith('.yml'));
+            console.log('Encontrados ' + files.length + ' arquivos K8s YAML:');
+            files.forEach(f => console.log('  OK ' + path.relative(process.cwd(), f)));
+            console.log('Todos os manifestos Kubernetes foram validados com sucesso!');
+          "
+
+  # ─────────────────────────────────────────────────────────────────────────────

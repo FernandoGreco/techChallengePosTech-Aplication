@@ -1,0 +1,183 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Cliente {
+  id            String         @id @default(uuid())
+  nome          String
+  documento     String         @unique
+  tipoDocumento TipoDocumento
+  telefone      String
+  email         String
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  ordensServico OrdemServico[]
+  veiculos      Veiculo[]
+
+  @@map("clientes")
+}
+
+model Veiculo {
+  id            String         @id @default(uuid())
+  placa         String         @unique
+  marca         String
+  modelo        String
+  ano           Int
+  clienteId     String
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  ordensServico OrdemServico[]
+  cliente       Cliente        @relation(fields: [clienteId], references: [id])
+
+  @@map("veiculos")
+}
+
+model Servico {
+  id                    String                @id @default(uuid())
+  nome                  String
+  descricao             String
+  precoBase             Float
+  tempoMedioMinutos     Int
+  ativo                 Boolean               @default(true)
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+  ordensServicoServicos OrdemServicoServico[]
+
+  @@map("servicos")
+}
+
+model Peca {
+  id                  String             @id @default(uuid())
+  nome                String
+  descricao           String
+  precoUnitario       Float
+  quantidadeEstoque   Int                @default(0)
+  quantidadeReservada Int                @default(0)
+  ativo               Boolean            @default(true)
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+  ordensServicoPecas  OrdemServicoPeca[]
+
+  @@map("pecas")
+}
+
+model OrdemServico {
+  id                    String                @id @default(uuid())
+  numero                Int                   @unique @default(autoincrement())
+  clienteId             String
+  veiculoId             String
+  status                StatusOS              @default(RECEBIDA)
+  diagnostico           String?
+  valorTotal            Float                 @default(0)
+  dataCriacao           DateTime              @default(now())
+  dataInicioDiagnostico DateTime?
+  dataInicioExecucao    DateTime?
+  dataFinalizacao       DateTime?
+  dataEntrega           DateTime?
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+  historico             HistoricoStatusOS[]
+  orcamentos            Orcamento[]
+  cliente               Cliente               @relation(fields: [clienteId], references: [id])
+  veiculo               Veiculo               @relation(fields: [veiculoId], references: [id])
+  pecas                 OrdemServicoPeca[]
+  servicos              OrdemServicoServico[]
+
+  @@map("ordens_servico")
+}
+
+model OrdemServicoServico {
+  id             String       @id @default(uuid())
+  ordemServicoId String
+  servicoId      String
+  valor          Float
+  createdAt      DateTime     @default(now())
+  ordemServico   OrdemServico @relation(fields: [ordemServicoId], references: [id])
+  servico        Servico      @relation(fields: [servicoId], references: [id])
+
+  @@map("ordens_servico_servicos")
+}
+
+model OrdemServicoPeca {
+  id             String       @id @default(uuid())
+  ordemServicoId String
+  pecaId         String
+  quantidade     Int
+  valorUnitario  Float
+  createdAt      DateTime     @default(now())
+  ordemServico   OrdemServico @relation(fields: [ordemServicoId], references: [id])
+  peca           Peca         @relation(fields: [pecaId], references: [id])
+
+  @@map("ordens_servico_pecas")
+}
+
+model Orcamento {
+  id             String          @id @default(uuid())
+  ordemServicoId String
+  valorServicos  Float
+  valorPecas     Float
+  valorTotal     Float
+  status         StatusOrcamento @default(GERADO)
+  dataGeracao    DateTime        @default(now())
+  dataAprovacao  DateTime?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  ordemServico   OrdemServico    @relation(fields: [ordemServicoId], references: [id])
+
+  @@map("orcamentos")
+}
+
+model Usuario {
+  id        String       @id @default(uuid())
+  nome      String
+  email     String       @unique
+  senhaHash String
+  papel     PapelUsuario @default(ATENDENTE)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  @@map("usuarios")
+}
+
+model HistoricoStatusOS {
+  id             String       @id @default(uuid())
+  ordemServicoId String
+  statusAnterior StatusOS?
+  statusNovo     StatusOS
+  observacao     String?
+  createdAt      DateTime     @default(now())
+  ordemServico   OrdemServico @relation(fields: [ordemServicoId], references: [id])
+
+  @@map("historico_status_os")
+}
+
+enum TipoDocumento {
+  CPF
+  CNPJ
+}
+
+enum StatusOS {
+  RECEBIDA
+  EM_DIAGNOSTICO
+  AGUARDANDO_APROVACAO
+  EM_EXECUCAO
+  FINALIZADA
+  ENTREGUE
+}
+
+enum StatusOrcamento {
+  GERADO
+  APROVADO
+  RECUSADO
+}
+
+enum PapelUsuario {
+  ADMIN
+  ATENDENTE
+  MECANICO
+}

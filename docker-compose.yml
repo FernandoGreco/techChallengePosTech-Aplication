@@ -1,0 +1,69 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: oficina-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: oficina_mecanica
+    ports:
+      - '5432:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - oficina-net
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    container_name: oficina-jaeger
+    restart: unless-stopped
+    ports:
+      - '16686:16686' # UI do Jaeger (Acesso via Navegador)
+      - '4318:4318'   # Endpoint OTLP HTTP (Recebe os traces da API)
+    networks:
+      - oficina-net
+
+  app:
+    build: .
+    container_name: oficina-app
+    restart: unless-stopped
+    ports:
+      - '3000:3000'
+    env_file:
+      - .env.docker
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/oficina_mecanica?schema=public
+      PORT: '3000'
+      OTEL_EXPORTER_OTLP_ENDPOINT: 'http://jaeger:4318/v1/traces'
+      # Email — configure com credenciais reais ou deixe em branco para gerar
+      # uma conta de teste Ethereal automaticamente (https://ethereal.email)
+      SMTP_HOST: ${SMTP_HOST:-smtp.ethereal.email}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-noreply@oficina.com}
+      APP_URL: ${APP_URL:-http://localhost:3000}
+      # Em redes corporativas com inspeção SSL/antivírus que injeta certificado
+      # self-signed, defina como 'false' para contornar erro de TLS. NUNCA usar
+      # 'false' em produção.
+      SMTP_TLS_REJECT_UNAUTHORIZED: ${SMTP_TLS_REJECT_UNAUTHORIZED:-true}
+    depends_on:
+      db:
+        condition: service_healthy
+      jaeger:
+        condition: service_started
+    networks:
+      - oficina-net
+
+volumes:
+  pgdata:
+
+networks:
+  oficina-net:
+    driver: bridge
