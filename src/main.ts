@@ -1,7 +1,7 @@
-import { otelSDK } from './tracing';
+// Deve ser a PRIMEIRA importação: inicializa o agente Datadog (dd-trace)
+// antes de qualquer outro módulo para capturar toda a instrumentação.
+import './tracing';
 
-// Inicializa a coleta de dados de telemetria
-otelSDK.start();
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';

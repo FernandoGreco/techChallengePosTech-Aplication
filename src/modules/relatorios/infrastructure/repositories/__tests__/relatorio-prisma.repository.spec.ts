@@ -36,13 +36,23 @@ describe('RelatorioPrismaRepository', () => {
     const inicio = new Date('2026-10-18T10:00:00Z');
     const fim = new Date('2026-10-18T11:00:00Z');
     prisma.ordemServico.findMany.mockResolvedValue([
-      { id: 'os1', numero: 42, dataInicioExecucao: inicio, dataFinalizacao: fim },
+      {
+        id: 'os1',
+        numero: 42,
+        dataInicioExecucao: inicio,
+        dataFinalizacao: fim,
+      },
     ]);
 
     const result = await repository.findOSFinalizadasComTempoExecucao();
 
     expect(result).toEqual([
-      { id: 'os1', numero: 42, dataInicioExecucao: inicio, dataFinalizacao: fim },
+      {
+        id: 'os1',
+        numero: 42,
+        dataInicioExecucao: inicio,
+        dataFinalizacao: fim,
+      },
     ]);
   });
 });

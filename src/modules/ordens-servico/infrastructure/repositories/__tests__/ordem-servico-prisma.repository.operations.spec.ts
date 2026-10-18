@@ -1,6 +1,7 @@
 import { NotFoundException } from '@nestjs/common';
 import { OrdemServicoPrismaRepository } from '../ordem-servico-prisma.repository';
 import { StatusOS } from '../../../domain/enums/status-os.enum';
+import { makeMetricsMock } from '../../../../../shared/metrics/__tests__/metrics.mock';
 
 const makeOSRecord = (
   id: string,
@@ -63,7 +64,10 @@ describe('OrdemServicoPrismaRepository', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     prisma = makePrisma();
-    repository = new OrdemServicoPrismaRepository(prisma as any);
+    repository = new OrdemServicoPrismaRepository(
+      prisma as any,
+      makeMetricsMock(),
+    );
   });
 
   // ─── findById ──────────────────────────────────────────────────────────────

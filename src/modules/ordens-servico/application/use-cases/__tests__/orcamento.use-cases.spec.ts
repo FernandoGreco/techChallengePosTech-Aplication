@@ -4,6 +4,7 @@ import { RecusarOrcamentoUseCase } from '../recusar-orcamento.use-case';
 import { GerarOrcamentoUseCase } from '../gerar-orcamento.use-case';
 import { StatusOS } from '../../../domain/enums/status-os.enum';
 import { BusinessException } from '../../../../../shared/exceptions';
+import { makeMetricsMock } from '../../../../../shared/metrics/__tests__/metrics.mock';
 
 const makeRepository = () => ({
   criar: jest.fn(),
@@ -120,7 +121,7 @@ describe('AprovarOrcamentoUseCase', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     repository = makeRepository();
-    useCase = new AprovarOrcamentoUseCase(repository);
+    useCase = new AprovarOrcamentoUseCase(repository, makeMetricsMock());
   });
 
   it('deve aprovar orçamento e reservar peças com estoque suficiente', async () => {

@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../../../shared/database';
+import { MetricsService } from '../../../../shared/metrics/metrics.service';
 import { StatusOS } from '../../domain/enums/status-os.enum';
 import {
   IOrdemServicoRepository,
@@ -36,7 +37,10 @@ const FULL_INCLUDE = {
 
 @Injectable()
 export class OrdemServicoPrismaRepository implements IOrdemServicoRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly metrics: MetricsService,
+  ) {}
 
   async criar(input: ICriarOSInput): Promise<IOrdemServico> {
     const cliente = await this.prisma.cliente.findUnique({
@@ -241,6 +245,8 @@ export class OrdemServicoPrismaRepository implements IOrdemServicoRepository {
         },
       }),
     ]);
+
+    this.metrics.osStatusTransition(input.statusAnterior, input.statusNovo);
 
     return this.findById(input.id);
   }

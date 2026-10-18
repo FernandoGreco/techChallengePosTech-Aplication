@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import * as nodemailer from 'nodemailer';
+import { MetricsService } from '../../../../shared/metrics/metrics.service';
 import { INotificacaoOrcamentoService } from '../../domain/services/notificacao-orcamento.service.interface';
 import { IOrdemServico } from '../../domain/entities/ordem-servico.entity';
 
@@ -7,6 +8,8 @@ import { IOrdemServico } from '../../domain/entities/ordem-servico.entity';
 export class EmailNotificacaoOrcamentoService implements INotificacaoOrcamentoService {
   private readonly logger = new Logger(EmailNotificacaoOrcamentoService.name);
   private transporterPromise: Promise<nodemailer.Transporter> | null = null;
+
+  constructor(private readonly metrics: MetricsService) {}
 
   /**
    * Cria o transporter sob demanda (lazy). Se SMTP_USER/SMTP_PASS não estiverem
@@ -79,12 +82,18 @@ export class EmailNotificacaoOrcamentoService implements INotificacaoOrcamentoSe
     );
 
     const transporter = await this.getTransporter();
-    const info = await transporter.sendMail({
-      from: this.montarRemetente(),
-      to: emailCliente,
-      subject: `[OS #${os.numero}] Orçamento pronto — aguardando sua aprovação`,
-      html,
-    });
+    let info: nodemailer.SentMessageInfo;
+    try {
+      info = await transporter.sendMail({
+        from: this.montarRemetente(),
+        to: emailCliente,
+        subject: `[OS #${os.numero}] Orçamento pronto — aguardando sua aprovação`,
+        html,
+      });
+    } catch (error) {
+      this.metrics.integracaoEmailErro();
+      throw error;
+    }
 
     this.logger.log(
       `Email de orçamento enviado para ${emailCliente} | OS #${os.numero} | messageId: ${info.messageId}`,

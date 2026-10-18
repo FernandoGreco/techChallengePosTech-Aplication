@@ -2,6 +2,8 @@ import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { DatabaseModule } from './shared/database';
 import { LoggingModule } from './shared/logging/logging.module';
+import { HealthModule } from './shared/health/health.module';
+import { MetricsModule } from './shared/metrics/metrics.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { JwtAuthGuard } from './modules/auth/infrastructure/jwt-auth.guard';
 import { ClientesModule } from './modules/clientes/clientes.module';
@@ -16,6 +18,8 @@ import { RelatoriosModule } from './modules/relatorios/relatorios.module';
   imports: [
     LoggingModule,
     DatabaseModule,
+    HealthModule,
+    MetricsModule,
     AuthModule,
     ClientesModule,
     VeiculosModule,

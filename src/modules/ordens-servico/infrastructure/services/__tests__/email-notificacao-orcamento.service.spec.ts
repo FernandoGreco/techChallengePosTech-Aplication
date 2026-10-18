@@ -2,6 +2,7 @@ import { EmailNotificacaoOrcamentoService } from '../email-notificacao-orcamento
 import * as nodemailer from 'nodemailer';
 import { StatusOS } from '../../../domain/enums/status-os.enum';
 import { IOrdemServico } from '../../../domain/entities/ordem-servico.entity';
+import { makeMetricsMock } from '../../../../../shared/metrics/__tests__/metrics.mock';
 
 jest.mock('nodemailer');
 
@@ -60,7 +61,7 @@ describe('EmailNotificacaoOrcamentoService', () => {
     mockCreateTransport = nodemailer.createTransport as jest.Mock;
     mockCreateTransport.mockReturnValue({ sendMail: mockSendMail });
 
-    service = new EmailNotificacaoOrcamentoService();
+    service = new EmailNotificacaoOrcamentoService(makeMetricsMock());
   });
 
   afterEach(() => {
@@ -94,7 +95,9 @@ describe('EmailNotificacaoOrcamentoService', () => {
 
   it('deve usar remetente padrão quando SMTP_FROM não está configurado', async () => {
     delete process.env.SMTP_FROM;
-    const serviceComFromPadrao = new EmailNotificacaoOrcamentoService();
+    const serviceComFromPadrao = new EmailNotificacaoOrcamentoService(
+      makeMetricsMock(),
+    );
 
     await serviceComFromPadrao.notificarOrcamentoPendente(
       makeOS('joao@test.com'),
@@ -110,7 +113,9 @@ describe('EmailNotificacaoOrcamentoService', () => {
 
   it('deve montar remetente corretamente quando SMTP_FROM é um email puro (sem aspas/nome)', async () => {
     process.env.SMTP_FROM = 'meuemail@gmail.com';
-    const serviceComEmailPuro = new EmailNotificacaoOrcamentoService();
+    const serviceComEmailPuro = new EmailNotificacaoOrcamentoService(
+      makeMetricsMock(),
+    );
 
     await serviceComEmailPuro.notificarOrcamentoPendente(
       makeOS('joao@test.com'),
@@ -126,7 +131,9 @@ describe('EmailNotificacaoOrcamentoService', () => {
 
   it('deve montar remetente corretamente quando SMTP_FROM tem nome e email formatados', async () => {
     process.env.SMTP_FROM = 'Minha Oficina <contato@minhaoficina.com>';
-    const serviceComNomeEEmail = new EmailNotificacaoOrcamentoService();
+    const serviceComNomeEEmail = new EmailNotificacaoOrcamentoService(
+      makeMetricsMock(),
+    );
 
     await serviceComNomeEEmail.notificarOrcamentoPendente(
       makeOS('joao@test.com'),
@@ -165,7 +172,9 @@ describe('EmailNotificacaoOrcamentoService', () => {
       smtp: { host: 'smtp.ethereal.email', port: 587 },
     });
 
-    const serviceSemCredenciais = new EmailNotificacaoOrcamentoService();
+    const serviceSemCredenciais = new EmailNotificacaoOrcamentoService(
+      makeMetricsMock(),
+    );
     await serviceSemCredenciais.notificarOrcamentoPendente(
       makeOS('joao@test.com'),
       100,
@@ -190,7 +199,9 @@ describe('EmailNotificacaoOrcamentoService', () => {
   it('deve permitir desabilitar validação de certificado TLS via env var (redes corporativas)', async () => {
     process.env.SMTP_TLS_REJECT_UNAUTHORIZED = 'false';
 
-    const serviceComTlsFlexivel = new EmailNotificacaoOrcamentoService();
+    const serviceComTlsFlexivel = new EmailNotificacaoOrcamentoService(
+      makeMetricsMock(),
+    );
     await serviceComTlsFlexivel.notificarOrcamentoPendente(
       makeOS('joao@test.com'),
       100,

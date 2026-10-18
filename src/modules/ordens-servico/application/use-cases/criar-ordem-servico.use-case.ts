@@ -1,5 +1,6 @@
 import { Injectable, Inject } from '@nestjs/common';
 import { BusinessException } from '../../../../shared/exceptions';
+import { MetricsService } from '../../../../shared/metrics/metrics.service';
 import {
   IOrdemServicoRepository,
   ORDEM_SERVICO_REPOSITORY,
@@ -14,6 +15,7 @@ export class CriarOrdemServicoUseCase {
   constructor(
     @Inject(ORDEM_SERVICO_REPOSITORY)
     private readonly repository: IOrdemServicoRepository,
+    private readonly metrics: MetricsService,
   ) {}
 
   async execute(dto: CreateOrdemServicoDto): Promise<IOrdemServico> {
@@ -36,6 +38,8 @@ export class CriarOrdemServicoUseCase {
     if (os.status !== StatusOS.RECEBIDA) {
       throw new BusinessException('OS criada com status inválido');
     }
+
+    this.metrics.osCriada();
 
     return os;
   }

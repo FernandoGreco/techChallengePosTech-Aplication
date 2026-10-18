@@ -1,5 +1,6 @@
 import { OrdemServicoPrismaRepository } from '../ordem-servico-prisma.repository';
 import { StatusOS } from '../../../domain/enums/status-os.enum';
+import { makeMetricsMock } from '../../../../../shared/metrics/__tests__/metrics.mock';
 
 const makeOS = (id: string, status: StatusOS, dataCriacao: Date) => ({
   id,
@@ -33,7 +34,10 @@ describe('OrdemServicoPrismaRepository — findOperacionais', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    repository = new OrdemServicoPrismaRepository(mockPrisma);
+    repository = new OrdemServicoPrismaRepository(
+      mockPrisma,
+      makeMetricsMock(),
+    );
   });
 
   it('deve excluir FINALIZADA e ENTREGUE via cláusula WHERE do Prisma', async () => {

@@ -1,5 +1,6 @@
 import { Injectable, Inject, NotFoundException } from '@nestjs/common';
 import { BusinessException } from '../../../../shared/exceptions';
+import { MetricsService } from '../../../../shared/metrics/metrics.service';
 import {
   IOrdemServicoRepository,
   ORDEM_SERVICO_REPOSITORY,
@@ -13,6 +14,7 @@ export class AprovarOrcamentoUseCase {
   constructor(
     @Inject(ORDEM_SERVICO_REPOSITORY)
     private readonly repository: IOrdemServicoRepository,
+    private readonly metrics: MetricsService,
   ) {}
 
   async execute(id: string): Promise<IOrdemServico> {
@@ -36,11 +38,16 @@ export class AprovarOrcamentoUseCase {
           `Dados da peça ${pecaOS.pecaId} não encontrados`,
         );
       }
-      EstoqueRules.validarDisponibilidade(
-        pecaOS.peca.quantidadeEstoque,
-        pecaOS.peca.quantidadeReservada,
-        pecaOS.quantidade,
-      );
+      try {
+        EstoqueRules.validarDisponibilidade(
+          pecaOS.peca.quantidadeEstoque,
+          pecaOS.peca.quantidadeReservada,
+          pecaOS.quantidade,
+        );
+      } catch (error) {
+        this.metrics.osFalhaEstoqueInsuficiente();
+        throw error;
+      }
     }
 
     return this.repository.aprovarOrcamento({

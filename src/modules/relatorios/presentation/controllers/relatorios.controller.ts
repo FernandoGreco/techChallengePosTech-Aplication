@@ -11,9 +11,7 @@ import { TempoMedioServicosUseCase } from '../../application/use-cases/tempo-med
 @ApiBearerAuth()
 @Controller('relatorios')
 export class RelatoriosController {
-  constructor(
-    private readonly tempoMedioServicos: TempoMedioServicosUseCase,
-  ) {}
+  constructor(private readonly tempoMedioServicos: TempoMedioServicosUseCase) {}
 
   @Get('tempo-medio-servicos')
   @ApiOperation({ summary: 'Relatório de tempo médio de execução das OS' })

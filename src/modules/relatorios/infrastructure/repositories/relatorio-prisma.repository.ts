@@ -27,8 +27,8 @@ export class RelatorioPrismaRepository implements IRelatorioRepository {
     return result.map((os) => ({
       id: os.id,
       numero: os.numero,
-      dataInicioExecucao: os.dataInicioExecucao as Date,
-      dataFinalizacao: os.dataFinalizacao as Date,
+      dataInicioExecucao: os.dataInicioExecucao,
+      dataFinalizacao: os.dataFinalizacao,
     }));
   }
 }
