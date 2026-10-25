@@ -82,6 +82,16 @@ npm run start:dev
 A API sobe em http://localhost:3000. Healthchecks: `/health` (liveness) e
 `/ready` (readiness).
 
+Para executar localmente o build de produção, com o mesmo banco e variáveis:
+
+```bash
+npm run build
+npm run start:prod
+```
+
+O build gera `dist/main.js` e armazena o cache incremental dentro de `dist`,
+para que o Nest limpe ambos juntos antes de cada compilação.
+
 ## Documentação da API (Swagger)
 
 - Local: http://localhost:3000/api/docs
@@ -96,6 +106,18 @@ A API sobe em http://localhost:3000. Healthchecks: `/health` (liveness) e
 
 Detalhes em [docs/rfc/RFC-003-estrategia-autenticacao.md](docs/rfc/RFC-003-estrategia-autenticacao.md).
 
+Para desenvolvimento local, execute `npm run prisma:seed` para criar os
+usuários de exemplo. O login do administrador em `POST /auth/login` usa:
+
+```json
+{
+  "email": "admin@email.com",
+  "senha": "123456"
+}
+```
+
+Essas credenciais são apenas para desenvolvimento; não as utilize em produção.
+
 ## Testes
 
 ```bash
@@ -103,6 +125,11 @@ npm test           # unitários (261 testes)
 npm run test:cov   # cobertura
 npm run test:e2e   # e2e (requer Postgres local)
 ```
+
+**Atenção:** a suíte E2E limpa as tabelas, incluindo usuários, no banco indicado
+por `DATABASE_URL`. Execute-a somente em um banco exclusivo para testes.
+Se ela tiver sido executada no banco de desenvolvimento, `npm run prisma:seed`
+recria as contas de exemplo, mas não recupera os dados removidos.
 
 ## Deploy
 

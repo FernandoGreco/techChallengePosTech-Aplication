@@ -4,6 +4,7 @@ import * as request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/shared/database';
 import * as bcrypt from 'bcryptjs';
+import { NOTIFICACAO_ORCAMENTO_SERVICE } from '../src/modules/ordens-servico/domain/services/notificacao-orcamento.service.interface';
 
 describe('Oficina Mecânica API (e2e)', () => {
   let app: INestApplication;
@@ -13,7 +14,10 @@ describe('Oficina Mecânica API (e2e)', () => {
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
-    }).compile();
+    })
+      .overrideProvider(NOTIFICACAO_ORCAMENTO_SERVICE)
+      .useValue({ notificarOrcamentoPendente: jest.fn() })
+      .compile();
 
     app = moduleFixture.createNestApplication();
     app.useGlobalPipes(
