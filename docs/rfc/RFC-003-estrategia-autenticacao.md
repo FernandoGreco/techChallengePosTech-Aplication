@@ -27,11 +27,12 @@ clientes e precisam continuar operando rotas internas.
 | **Cliente** | Lambda (repo 1) — auth por CPF | `sub` (clienteId), `cpf`, `iat`, `exp`, `iss=lambda-auth` | Rotas sensíveis do cliente |
 | **Staff** | App (interno) — login email+senha | `sub` (usuarioId), `email`, `papel`, `iss=oficina-staff` | Rotas administrativas |
 
-**Contrato C1 (proposto pela autora, aceito pelo grupo):**
+**Contrato C1 (alinhado com docs/auth-contract.md do repo 1):**
 
 - **Algoritmo:** HS256 com **secret compartilhado** (mesmo `JWT_SECRET`)
-- **Claims mínimos:** `sub`, `cpf`, `iat`, `exp`, `iss`
-- **Erros:** 401 para token inválido/expirado
+- **Claims:** `sub` (clienteId), `cpf`, `nome` (opcional), `papel` (opcional, sempre `CLIENTE`), `iss=oficina-auth-lambda`, `iat`, `exp`
+- **TTL:** 3600 segundos (1 hora)
+- **Erros:** 400 (CPF inválido), 401 (não encontrado), 403 (inativo), 500 (interno)
 - **Migração futura:** RS256/JWKS — a verificação fica abstraída no `JwtStrategy`
   para trocar o algoritmo sem refatorar o restante
 

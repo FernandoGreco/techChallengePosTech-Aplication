@@ -6,7 +6,7 @@ import { IJwtPayload, IAuthenticatedUser } from '../domain/jwt-payload.types';
 /**
  * JwtStrategy — valida tokens de dois emissores (multi-issuer, RFC-003):
  *
- * - Lambda (clientes, iss=lambda-auth): auth por CPF, claims { sub, cpf }
+ * - Lambda (clientes, iss=oficina-auth-lambda): auth por CPF, claims { sub, cpf, nome?, papel? }
  * - App interno (staff, iss=oficina-staff): login email+senha, claims { sub, email, papel }
  *
  * Ambos usam HS256 com o mesmo JWT_SECRET (contrato C1). A verificação fica
@@ -24,11 +24,12 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   validate(payload: IJwtPayload): IAuthenticatedUser {
-    if (payload.iss === 'lambda-auth') {
+    if (payload.iss === 'oficina-auth-lambda') {
       return {
         id: payload.sub,
         tipo: 'cliente',
         cpf: payload.cpf,
+        nome: payload.nome,
       };
     }
 

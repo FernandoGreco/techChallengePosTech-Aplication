@@ -13,7 +13,9 @@ describe('JwtStrategy', () => {
       const payload: ILambdaJwtPayload = {
         sub: 'cliente-123',
         cpf: '12345678900',
-        iss: 'lambda-auth',
+        nome: 'João da Silva',
+        papel: 'CLIENTE',
+        iss: 'oficina-auth-lambda',
         iat: 1,
         exp: 2,
       };
@@ -24,6 +26,26 @@ describe('JwtStrategy', () => {
         id: 'cliente-123',
         tipo: 'cliente',
         cpf: '12345678900',
+        nome: 'João da Silva',
+      });
+    });
+
+    it('deve validar payload da Lambda mesmo sem claims opcionais (nome/papel)', () => {
+      const payload: ILambdaJwtPayload = {
+        sub: 'cliente-123',
+        cpf: '12345678900',
+        iss: 'oficina-auth-lambda',
+        iat: 1,
+        exp: 2,
+      };
+
+      const result = strategy.validate(payload);
+
+      expect(result).toEqual({
+        id: 'cliente-123',
+        tipo: 'cliente',
+        cpf: '12345678900',
+        nome: undefined,
       });
     });
   });
