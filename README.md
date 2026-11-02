@@ -151,7 +151,14 @@ um link de preview nos logs.
 - **CD**: push em `develop` publica e implanta em homolog; push em `main` publica e implanta em produção. O deploy executa migrations Prisma em Job antes do rollout.
 - Configure GitHub Environments `homolog` e `prod`, cada um com secrets `KUBE_CONFIG`, `DATABASE_URL`, `JWT_SECRET`, `ORCAMENTO_ACTION_SECRET`, `GHCR_PULL_USERNAME`, `GHCR_PULL_TOKEN`; configure a variable `KUBE_NAMESPACE`. `APP_URL` e as credenciais SMTP são necessárias para links de aprovação e envio de e-mail. Gere `ORCAMENTO_ACTION_SECRET` como um valor aleatório independente e mantenha-o fora do Git.
 - No API Gateway do repo Auth, configure GET e POST para `/ordens-servico/{id}/aprovar-orcamento` e `/ordens-servico/{id}/recusar-orcamento` sem o Lambda Authorizer: o GET só mostra confirmação, e o POST valida o token de ação assinado. O GET público `GET /ordens-servico/{id}/status` também precisa ser encaminhado conforme a política do Gateway.
-- O cluster precisa ter Datadog Agent instalado, com APM e DogStatsD acessíveis nos nodes; o `DD_API_KEY` pertence ao Secret do Agent no cluster, não à aplicação.
+- Para instalar o Datadog Agent, adicione em cada GitHub Environment usado: secret `DATADOG_API_KEY` e variables `DATADOG_SITE` (por exemplo, `datadoghq.com`) e `DATADOG_CLUSTER_NAME` (nome real do cluster). Execute Actions → `Instalar Datadog Agent` e selecione o ambiente. O workflow instala/atualiza o chart oficial como DaemonSet no namespace `datadog`, com APM, DogStatsD e coleta de logs habilitados. Execute uma vez por cluster; se homolog e prod compartilham cluster, não é necessário executar duas vezes.
+- O Deployment da aplicação envia traces para `8126` e métricas DogStatsD para `8125` no node local. A chave `DATADOG_API_KEY` fica no Secret do Agent, não na aplicação.
+- Consultas para montar o dashboard no Datadog:
+    - Volume diário de OS: `sum:oficina.os.criada{*}.as_count()` em um gráfico de série temporal, com intervalo de 1 dia.
+    - Tempo médio por status, em milissegundos: `avg:oficina.os.tempo_status{*} by {status}`. Os valores do status são `EM_DIAGNOSTICO`, `EM_EXECUCAO` e `FINALIZADA`.
+    - Falhas de integração: `sum:oficina.integracao.email.erro{*}.as_count()`; falhas de processamento por estoque: `sum:oficina.os.falha_estoque_insuficiente{*}.as_count()`.
+- Para alertar sobre falhas de processamento, crie um monitor métrico com consulta `sum(last_5m):sum:oficina.os.falha_estoque_insuficiente{*}.as_count() > 0` e configure o destinatário de notificação. Para disponibilidade, monitore `GET <APP_URL>/health` no Datadog após o endpoint estar acessível.
+- Latência das APIs aparece no serviço APM `oficina-mecanica-api` depois que os traces forem recebidos. No dashboard Kubernetes, confira CPU/memória, pods e logs coletados pelo Agent. Gere tráfego e transições de OS na aplicação do cluster para alimentar esses painéis; a execução local não envia métricas ao Agent do cluster.
 - A aplicação não recebe AWS access keys. O acesso ao Aurora deve ser concedido por rede/credenciais do ambiente, e `DATABASE_URL` fica somente no GitHub Environment/Kubernetes Secret.
 
 ## Documentação arquitetural

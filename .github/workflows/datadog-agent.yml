@@ -1,0 +1,73 @@
+name: Instalar Datadog Agent
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Ambiente/cluster onde instalar o Agent
+        required: true
+        type: choice
+        options:
+          - homolog
+          - prod
+
+jobs:
+  install-agent:
+    name: Instalar ou atualizar Agent no cluster
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ inputs.target }}
+    permissions:
+      contents: read
+
+    steps:
+      - name: Obter código
+        uses: actions/checkout@v4
+
+      - name: Configurar kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Configurar Helm
+        uses: azure/setup-helm@v4
+
+      - name: Conectar ao cluster
+        uses: azure/k8s-set-context@v4
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.KUBE_CONFIG }}
+
+      - name: Instalar ou atualizar Datadog Agent
+        env:
+          DATADOG_API_KEY: ${{ secrets.DATADOG_API_KEY }}
+          DATADOG_SITE: ${{ vars.DATADOG_SITE }}
+          DATADOG_CLUSTER_NAME: ${{ vars.DATADOG_CLUSTER_NAME }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          for name in DATADOG_API_KEY DATADOG_SITE DATADOG_CLUSTER_NAME; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "Required GitHub Environment value missing: $name"
+              exit 1
+            fi
+          done
+
+          kubectl create namespace datadog \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+          kubectl create secret generic datadog-api-key \
+            --namespace datadog \
+            --from-literal=api-key="$DATADOG_API_KEY" \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+          helm repo add datadog https://helm.datadoghq.com
+          helm repo update datadog
+          helm upgrade --install datadog-agent datadog/datadog \
+            --version 3.264.0 \
+            --namespace datadog \
+            --values k8s/datadog-values.yaml \
+            --set-string datadog.site="$DATADOG_SITE" \
+            --set-string datadog.clusterName="$DATADOG_CLUSTER_NAME" \
+            --wait --timeout 10m
+
+          kubectl get pods --namespace datadog

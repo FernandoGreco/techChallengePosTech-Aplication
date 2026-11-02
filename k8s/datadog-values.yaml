@@ -1,0 +1,13 @@
+datadog:
+  apiKeyExistingSecret: datadog-api-key
+  apm:
+    portEnabled: true
+  dogstatsd:
+    useHostPort: true
+    nonLocalTraffic: true
+  logs:
+    enabled: true
+    containerCollectAll: true
+
+operator:
+  enabled: false
