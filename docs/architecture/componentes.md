@@ -18,7 +18,7 @@ flowchart TB
         end
 
         subgraph LAMBDA["Repo 1 — Lambda (auth CPF)"]
-            L["Valida CPF → consulta app<br/>→ emite JWT HS256<br/>(claims: sub, cpf, iss=lambda-auth)"]
+            L["Valida CPF → consulta Aurora<br/>→ emite JWT HS256<br/>(iss=oficina-auth-lambda)"]
         end
 
         subgraph K8S["Cluster Kubernetes (Repo 2)"]
@@ -40,7 +40,7 @@ flowchart TB
         end
 
         subgraph DB["Repo 3 — Banco gerenciado"]
-            RDS[("RDS PostgreSQL")]
+            RDS[("Aurora PostgreSQL")]
         end
 
         subgraph OBS["Observabilidade"]
@@ -52,9 +52,9 @@ flowchart TB
     EMAIL --> APIGW
     APIGW --> L
     APIGW --> SVC
-    L -->|GET /clientes/documento/:documento| SVC
     SVC --> CTRL
     REPO --> RDS
+    L -->|PostgreSQL / TLS| RDS
     APP --> DD
     HPA -.->|escala| APP
 ```
@@ -79,9 +79,9 @@ flowchart TB
 | Componente | Repo | Interação com este repo |
 |---|---|---|
 | **API Gateway** | compartilhado | Roteia tráfego, propaga `x-correlation-id`, aplica rate limit |
-| **Lambda (auth CPF)** | repo 1 | Emite JWT HS256 (claims `sub`, `cpf`, `iss=lambda-auth`) após consultar `GET /clientes/documento/:documento` |
+| **Lambda (auth CPF)** | repo 1 | Consulta diretamente `clientes` no Aurora PostgreSQL e emite JWT HS256 (claims `sub`, `cpf`, `iss=oficina-auth-lambda`) |
 | **Cluster K8s** | repo 2 | Executa a app (Deployment + Service + HPA); probes em `/health` e `/ready` |
-| **RDS PostgreSQL** | repo 3 | `DATABASE_URL` via Secret; `prisma migrate deploy` no deploy |
+| **Aurora PostgreSQL** | repo 3 | `DATABASE_URL` via Secret; migration executada em Job antes do rollout |
 | **Datadog** | compartilhado | Recebe traces (dd-trace), logs JSON (stdout) e métricas customizadas (dogstatsd) |
 
 ## Decisões arquiteturais
@@ -98,4 +98,4 @@ flowchart TB
 | Probes | liveness `/health` (15s/20s), readiness `/ready` (5s/10s) |
 | Recursos | requests 100m/128Mi; limits 500m/512Mi |
 | HPA | min 2, max conforme CPU (ver [k8s/hpa.yaml](../../k8s/hpa.yaml)) |
-| Secrets | `DATABASE_URL`, `JWT_SECRET`, `DD_API_KEY` via K8s Secret |
+| Secrets | `DATABASE_URL`, `JWT_SECRET`, SMTP e credencial de pull do GHCR via Secret do ambiente |

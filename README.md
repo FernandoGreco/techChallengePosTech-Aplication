@@ -14,9 +14,9 @@ Datadog e autenticação via Lambda (clientes, por CPF) + staff interno.
 
 | Repo | Escopo | Status |
 |---|---|---|
-| [techChallengePosTech-lambda](https://github.com/FernandoGreco/techChallengePosTech-lambda) | Lambda de auth por CPF (repo 1) | em desenvolvimento |
+| [techChallengePosTech-auth](https://github.com/FernandoGreco/techChallengePosTech-auth) | Lambda de auth por CPF + API Gateway (repo 1) | em desenvolvimento |
 | [techChallengePosTech-k8s-infra](https://github.com/FernandoGreco/techChallengePosTech-k8s-infra) | Cluster K8s (Terraform, EC2, kubeadm) | em desenvolvimento |
-| [techChallengePosTech-db-infra](https://github.com/FernandoGreco/techChallengePosTech-db-infra) | RDS PostgreSQL (Terraform) | vazio |
+| [techChallengePosTech-db-infra](https://github.com/FernandoGreco/techChallengePosTech-db-infra) | Aurora PostgreSQL (Terraform) | provisionamento externo |
 | **techChallengePosTech-Aplication** | **API + K8s manifests + CI/CD (este repo)** | **em desenvolvimento** |
 
 ## Arquitetura deste repositório
@@ -28,7 +28,7 @@ flowchart LR
     end
 
     subgraph REPO1["Repo 1 — Lambda"]
-        L["Lambda: valida CPF<br/>consulta cliente → emite JWT"]
+        L["Lambda: valida CPF<br/>consulta Aurora → emite JWT"]
     end
 
     subgraph GW["API Gateway"]
@@ -37,14 +37,14 @@ flowchart LR
 
     subgraph SEU["Repo 4 — App no K8s (este)"]
         API["API NestJS<br/>monólito modular"]
-        API --> PG[("RDS PostgreSQL<br/>(repo 3)")]
+        API --> PG[("Aurora PostgreSQL<br/>(repo 3)")]
         API --> DD["Datadog<br/>logs / traces / métricas"]
     end
 
     C --> G
     G --> L
     G --> API
-    L --> API
+    L --> PG
 ```
 
 Ver [docs/architecture/componentes.md](docs/architecture/componentes.md) para o
@@ -55,7 +55,7 @@ para os fluxos de autenticação e abertura de OS.
 ## Tecnologias
 
 - **NestJS 11** (Node.js, TypeScript) — monólito modular
-- **Prisma** + PostgreSQL (RDS em produção)
+- **Prisma** + PostgreSQL-compatible Aurora (produção)
 - **JWT** — multi-issuer: Lambda (clientes, CPF) + staff interno (ver [RFC-003](docs/rfc/RFC-003-estrategia-autenticacao.md))
 - **Datadog** (`dd-trace`) — APM, logs JSON, métricas de negócio (ver [RFC-004](docs/rfc/RFC-004-observabilidade-datadog.md))
 - **Docker** + **Kubernetes** (manifests em [k8s/](k8s/))
@@ -121,7 +121,7 @@ Essas credenciais são apenas para desenvolvimento; não as utilize em produçã
 ## Testes
 
 ```bash
-npm test           # unitários (261 testes)
+npm test           # testes unitários
 npm run test:cov   # cobertura
 npm run test:e2e   # e2e (requer Postgres local)
 ```
@@ -131,16 +131,34 @@ por `DATABASE_URL`. Execute-a somente em um banco exclusivo para testes.
 Se ela tiver sido executada no banco de desenvolvimento, `npm run prisma:seed`
 recria as contas de exemplo, mas não recupera os dados removidos.
 
+Para preparar OS sintéticas locais sem recriar cliente, veículo, serviços e peças:
+
+```bash
+npm run prisma:seed:scenarios
+```
+
+O comando só aceita `DATABASE_URL` local apontando para `oficina_mecanica`,
+recria exclusivamente as cinco OS de fixture e preserva os demais registros.
+A OS `EM_DIAGNOSTICO` está pronta para testar geração de orçamento/notificação;
+ao repetir o seed, as fixtures voltam aos estados iniciais. Defina
+`SEED_CLIENT_EMAIL` no `.env` com uma caixa de teste que você controla para
+receber o orçamento; sem SMTP configurado, o serviço usa Ethereal e registra
+um link de preview nos logs.
+
 ## Deploy
 
-- **CI** (`.github/workflows/`): lint, testes unitários + e2e, build, Docker build/push (GHCR)
-- **CD**: `develop` → namespace homolog; `main` → namespace prod (via manifests [k8s/](k8s/))
+- **CI** (`.github/workflows/`): lint, testes unitários + e2e, build e Docker build.
+- **CD**: push em `develop` publica e implanta em homolog; push em `main` publica e implanta em produção. O deploy executa migrations Prisma em Job antes do rollout.
+- Configure GitHub Environments `homolog` e `prod`, cada um com secrets `KUBE_CONFIG`, `DATABASE_URL`, `JWT_SECRET`, `ORCAMENTO_ACTION_SECRET`, `GHCR_PULL_USERNAME`, `GHCR_PULL_TOKEN`; configure a variable `KUBE_NAMESPACE`. `APP_URL` e as credenciais SMTP são necessárias para links de aprovação e envio de e-mail. Gere `ORCAMENTO_ACTION_SECRET` como um valor aleatório independente e mantenha-o fora do Git.
+- No API Gateway do repo Auth, configure GET e POST para `/ordens-servico/{id}/aprovar-orcamento` e `/ordens-servico/{id}/recusar-orcamento` sem o Lambda Authorizer: o GET só mostra confirmação, e o POST valida o token de ação assinado. O GET público `GET /ordens-servico/{id}/status` também precisa ser encaminhado conforme a política do Gateway.
+- O cluster precisa ter Datadog Agent instalado, com APM e DogStatsD acessíveis nos nodes; o `DD_API_KEY` pertence ao Secret do Agent no cluster, não à aplicação.
+- A aplicação não recebe AWS access keys. O acesso ao Aurora deve ser concedido por rede/credenciais do ambiente, e `DATABASE_URL` fica somente no GitHub Environment/Kubernetes Secret.
 
 ## Documentação arquitetural
 
 | Doc | Conteúdo |
 |---|---|
-| [docs/architecture/componentes.md](docs/architecture/componentes.md) | Diagrama de componentes (C4-nível-2) |
+| [docs/architecture/componentes.md](docs/architecture/componentes.md) | Diagrama de componentes (C4-nível-2; Lambda consulta Aurora diretamente) |
 | [docs/architecture/sequencia-auth-os.md](docs/architecture/sequencia-auth-os.md) | Sequência: auth via CPF + abertura de OS |
 | [docs/rfc/](docs/rfc/) | RFC-001 (nuvem) · RFC-002 (banco) · RFC-003 (auth) · RFC-004 (observabilidade) |
 | [docs/adr/](docs/adr/) | ADR-001 (monólito Clean Arch) · ADR-002 (REST síncrono) · ADR-003 (HPA) · ADR-004 (logs) |

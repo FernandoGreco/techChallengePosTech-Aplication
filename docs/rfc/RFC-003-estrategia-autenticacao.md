@@ -24,7 +24,7 @@ clientes e precisam continuar operando rotas internas.
 
 | Origem | Emissor | Claims | Uso |
 |---|---|---|---|
-| **Cliente** | Lambda (repo 1) — auth por CPF | `sub` (clienteId), `cpf`, `iat`, `exp`, `iss=lambda-auth` | Rotas sensíveis do cliente |
+| **Cliente** | Lambda (repo 1) — auth por CPF | `sub` (clienteId), `cpf`, `iat`, `exp`, `iss=oficina-auth-lambda` | Rotas sensíveis do cliente |
 | **Staff** | App (interno) — login email+senha | `sub` (usuarioId), `email`, `papel`, `iss=oficina-staff` | Rotas administrativas |
 
 **Contrato C1 (alinhado com docs/auth-contract.md do repo 1):**
@@ -48,8 +48,10 @@ clientes e precisam continuar operando rotas internas.
 
 - `JwtStrategy` valida o `iss` claim e delega para o handler correto (cliente × staff).
 - O secret HS256 é compartilhado — a Lambda assina e o app verifica com a mesma chave.
-- Cliente ganha campo `ativo` (migration) para a Lambda consultar existência/status.
+- Cliente tem campo `ativo` (migration); a Lambda consulta diretamente o Aurora para validar existência/status antes de emitir o token.
 - `/auth/login` permanece **apenas para staff**; clientes obtêm token na Lambda.
+- Consulta detalhada da OS aceita JWT CPF apenas quando `sub` corresponde ao `clienteId` da OS.
+- Aprovação/recusa por e-mail preserva a experiência da Fase 2 sem login interativo; usa token assinado e expirável, vinculado à OS e à ação, validado no POST após uma confirmação explícita.
 - Swagger e README documentam o novo fluxo de autenticação.
 
 ## Referências

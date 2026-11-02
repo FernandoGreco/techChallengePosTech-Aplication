@@ -2,7 +2,6 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: oficina-api
-  namespace: oficina
 
 spec:
   replicas: 2
@@ -17,9 +16,11 @@ spec:
         app: oficina-api
 
     spec:
+      imagePullSecrets:
+        - name: ghcr-pull
       containers:
         - name: oficina-api
-          image: oficina-api:latest
+          image: ghcr.io/fernandogreco/techchallengepostech-aplication:dev
           imagePullPolicy: IfNotPresent
 
           ports:
@@ -30,6 +31,16 @@ spec:
                 name: oficina-config
             - secretRef:
                 name: oficina-secret
+
+          env:
+            - name: DD_AGENT_HOST
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+            - name: DD_TRACE_AGENT_PORT
+              value: "8126"
+            - name: DD_DOGSTATSD_PORT
+              value: "8125"
 
           livenessProbe:
             httpGet:

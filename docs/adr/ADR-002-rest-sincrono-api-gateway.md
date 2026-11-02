@@ -15,7 +15,8 @@ assíncrono de alta volumetria nem de eventos entre serviços.
 
 **Comunicação síncrona REST/HTTP**, com todo o tráfego externo passando pelo
 **API Gateway** (roteamento, CORS, rate limit, propagação de `x-correlation-id`).
-A Lambda consulta a app por HTTP (`GET /clientes/documento/:documento`).
+A Lambda consulta diretamente o Aurora PostgreSQL para validar o cliente; o
+Gateway encaminha as chamadas de negócio para a API NestJS no Kubernetes.
 
 ## Consequências
 
