@@ -4,6 +4,7 @@ import {
   ORDEM_SERVICO_REPOSITORY,
 } from '../../domain/repositories/ordem-servico.repository.interface';
 import { IOrdemServico } from '../../domain/entities/ordem-servico.entity';
+import { IAuthenticatedUser } from '../../../auth/domain/jwt-payload.types';
 
 @Injectable()
 export class BuscarOrdemServicoPorIdUseCase {
@@ -12,9 +13,15 @@ export class BuscarOrdemServicoPorIdUseCase {
     private readonly repository: IOrdemServicoRepository,
   ) {}
 
-  async execute(id: string): Promise<IOrdemServico> {
+  async execute(
+    id: string,
+    actor?: IAuthenticatedUser,
+  ): Promise<IOrdemServico> {
     const os = await this.repository.findById(id);
     if (!os) {
+      throw new NotFoundException('Ordem de Serviço não encontrada');
+    }
+    if (actor?.tipo === 'cliente' && os.clienteId !== actor.id) {
       throw new NotFoundException('Ordem de Serviço não encontrada');
     }
     return os;

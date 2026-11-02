@@ -18,6 +18,7 @@ describe('OrdensServicoController', () => {
   let iniciarExecucao: any;
   let finalizarOS: any;
   let entregarOS: any;
+  let actionTokens: any;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -35,6 +36,7 @@ describe('OrdensServicoController', () => {
     iniciarExecucao = makeMock();
     finalizarOS = makeMock();
     entregarOS = makeMock();
+    actionTokens = { verify: jest.fn() };
 
     controller = new OrdensServicoController(
       criarOS,
@@ -51,6 +53,7 @@ describe('OrdensServicoController', () => {
       iniciarExecucao,
       finalizarOS,
       entregarOS,
+      actionTokens,
     );
   });
 
@@ -72,9 +75,12 @@ describe('OrdensServicoController', () => {
   });
 
   it('buscarPorId chama BuscarOrdemServicoPorIdUseCase.execute', async () => {
+    const request = { user: { id: 'cliente-1', tipo: 'cliente' as const } };
     buscarOSPorId.execute.mockResolvedValue({ id: 'o1' });
-    await expect(controller.buscarPorId('o1')).resolves.toEqual({ id: 'o1' });
-    expect(buscarOSPorId.execute).toHaveBeenCalledWith('o1');
+    await expect(controller.buscarPorId('o1', request)).resolves.toEqual({
+      id: 'o1',
+    });
+    expect(buscarOSPorId.execute).toHaveBeenCalledWith('o1', request.user);
   });
 
   it('consultarStatusOS chama ConsultarStatusOSUseCase.execute', async () => {
@@ -83,6 +89,15 @@ describe('OrdensServicoController', () => {
       status: 'RECEBIDA',
     });
     expect(consultarStatus.execute).toHaveBeenCalledWith('o1');
+  });
+
+  it('GET de confirmação do orçamento só renderiza página e não altera estado', () => {
+    const page = controller.confirmarAprovacaoOrcamento();
+
+    expect(page).toContain('method="post"');
+    expect(page).toContain('action=""');
+    expect(page).toContain('window.location.hash');
+    expect(aprovarOrcamento.execute).not.toHaveBeenCalled();
   });
 
   it('adicionarServicoOS chama AdicionarServicoOSUseCase.execute', async () => {
@@ -130,17 +145,31 @@ describe('OrdensServicoController', () => {
 
   it('aprovarOrcamentoOS chama AprovarOrcamentoUseCase.execute', async () => {
     aprovarOrcamento.execute.mockResolvedValue({ success: true });
-    await expect(controller.aprovarOrcamentoOS('o1')).resolves.toEqual({
+    await expect(
+      controller.aprovarOrcamentoOS('o1', 'signed-approve-token'),
+    ).resolves.toEqual({
       success: true,
     });
+    expect(actionTokens.verify).toHaveBeenCalledWith(
+      'signed-approve-token',
+      'o1',
+      'aprovar',
+    );
     expect(aprovarOrcamento.execute).toHaveBeenCalledWith('o1');
   });
 
   it('recusarOrcamentoOS chama RecusarOrcamentoUseCase.execute', async () => {
     recusarOrcamento.execute.mockResolvedValue({ success: true });
-    await expect(controller.recusarOrcamentoOS('o1')).resolves.toEqual({
+    await expect(
+      controller.recusarOrcamentoOS('o1', 'signed-reject-token'),
+    ).resolves.toEqual({
       success: true,
     });
+    expect(actionTokens.verify).toHaveBeenCalledWith(
+      'signed-reject-token',
+      'o1',
+      'recusar',
+    );
     expect(recusarOrcamento.execute).toHaveBeenCalledWith('o1');
   });
 

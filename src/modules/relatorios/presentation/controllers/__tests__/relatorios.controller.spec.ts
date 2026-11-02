@@ -1,40 +1,29 @@
 import { RelatoriosController } from '../relatorios.controller';
+import { TempoMedioServicosUseCase } from '../../../application/use-cases/tempo-medio-servicos.use-case';
 
 describe('RelatoriosController', () => {
-  const mockPrisma: any = { ordemServico: { findMany: jest.fn() } };
+  let controller: RelatoriosController;
+  let useCase: { execute: jest.Mock };
 
-  it('retorna zeros quando não há OS finalizadas', async () => {
-    mockPrisma.ordemServico.findMany.mockResolvedValue([]);
-    const controller = new RelatoriosController(mockPrisma);
-    const res = await controller.tempoMedioServicos();
-    expect(res.totalOS).toBe(0);
-    expect(res.tempoMedioMinutos).toBe(0);
+  beforeEach(() => {
+    useCase = { execute: jest.fn() };
+    controller = new RelatoriosController(
+      useCase as unknown as TempoMedioServicosUseCase,
+    );
   });
 
-  it('calcula tempo médio corretamente quando há OS finalizadas', async () => {
-    const now = new Date();
-    const tenMinutesAgo = new Date(now.getTime() - 10 * 60 * 1000);
-    const twentyMinutesAgo = new Date(now.getTime() - 20 * 60 * 1000);
+  it('delega para o TempoMedioServicosUseCase', async () => {
+    const expected = {
+      totalOS: 2,
+      tempoMedioMinutos: 15,
+      tempoMedioHoras: 0.25,
+      detalhes: [],
+    };
+    useCase.execute.mockResolvedValue(expected);
 
-    mockPrisma.ordemServico.findMany.mockResolvedValue([
-      {
-        id: '1',
-        numero: 1,
-        dataInicioExecucao: twentyMinutesAgo,
-        dataFinalizacao: now,
-      },
-      {
-        id: '2',
-        numero: 2,
-        dataInicioExecucao: tenMinutesAgo,
-        dataFinalizacao: now,
-      },
-    ]);
+    const res = await controller.tempoMedio();
 
-    const controller = new RelatoriosController(mockPrisma);
-    const res = await controller.tempoMedioServicos();
-    expect(res.totalOS).toBe(2);
-    expect(res.detalhes.length).toBe(2);
-    expect(typeof res.tempoMedioHoras).toBe('number');
+    expect(useCase.execute).toHaveBeenCalledTimes(1);
+    expect(res).toEqual(expected);
   });
 });

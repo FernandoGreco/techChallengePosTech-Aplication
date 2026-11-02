@@ -25,7 +25,7 @@ A Clean Architecture, os 251 testes e a máquina de estados da OS **são preserv
 |---|---|---|---|---|
 | R1 | API Gateway (Kong/Traefik/AWS) | Infra compartilhada + app | App: aceitar tráfego do gateway, confiar em headers propagados, documentar contrato (rate limit, CORS, auth no gateway) | P |
 | R2 | Proteger rotas sensíveis com autenticação via CPF | `src/modules/auth` | Reescrever `JwtStrategy` para validar token da Lambda (claims com CPF); decidir modelo dual cliente×staff (ver D1) | M |
-| R3 | Lambda: validar CPF, consultar cliente, emitir JWT | **Repo 1 (colega)** | Seu papel: expor endpoint de consulta de cliente por CPF (`GET /clientes/documento/:documento` já existe) e fechar o contrato do JWT (ver C1) | P |
+| R3 | Lambda: validar CPF, consultar cliente, emitir JWT | **Repo 1 (colega)** | Seu papel: prover Aurora/schema e conceder acesso de rede restrito ao SG da Lambda; fechar contrato do JWT (C1) | P |
 | R4 | 4 repositórios com CI/CD e deploy automático | Repo novo | Scaffold, copiar código sem `/infra`, branch protection, pipeline adaptada | M |
 | R5 | Banco gerenciado (RDS) | **Repo 3 (colega)** | Seu papel: consumir `DATABASE_URL` via Secret; remover Postgres local do compose de produção | P |
 | R6 | Cluster K8s com escalabilidade | **Repo 2 (colega)** + app | Seu papel: manter manifests da app (deployment/service/hpa) e healthchecks `/health` + `/ready` para probes | P |
@@ -73,7 +73,7 @@ Esforço: P = pequeno (< 1 dia) · M = médio (1–3 dias) · G = grande (> 3 di
   - TTL do token e tratamento de expiração
   - Formato de erro da Lambda (401 vs 403)
 - [ ] Reescrever `JwtStrategy.validate()` para o novo shape de payload (extrair `cpf`/`sub`)
-- [ ] Endpoint da Lambda → app: garantir que `GET /clientes/documento/:documento` atenda à consulta de existência/status da Lambda (já existe; verificar se precisa de campo `status`/`ativo` no cliente — hoje não existe → possível migration)
+- [ ] Integração Lambda → Aurora: garantir que a Lambda consulte `clientes` diretamente com filtro CPF e `ativo`; schema e migration `Cliente.ativo` estão neste repo
 - [ ] Tornar `/auth/login` interno (staff) ou depreciá-lo conforme D1
 - [ ] Atualizar testes de auth (strategy, guard, controller) para o novo emissor
 - [ ] Swagger: atualizar fluxo de authorize (token vem da Lambda, não mais do `/auth/login` — documentar como obter token no README)

@@ -1,5 +1,6 @@
 import { CriarOrdemServicoUseCase } from '../criar-ordem-servico.use-case';
 import { StatusOS } from '../../../domain/enums/status-os.enum';
+import { makeMetricsMock } from '../../../../../shared/metrics/__tests__/metrics.mock';
 
 const mockRepository = {
   criar: jest.fn(),
@@ -22,7 +23,7 @@ describe('CriarOrdemServicoUseCase', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    useCase = new CriarOrdemServicoUseCase(mockRepository);
+    useCase = new CriarOrdemServicoUseCase(mockRepository, makeMetricsMock());
   });
 
   it('deve criar OS com status RECEBIDA e retornar dados', async () => {

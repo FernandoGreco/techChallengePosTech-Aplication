@@ -1,14 +1,17 @@
-import { otelSDK } from './tracing';
+// Deve ser a PRIMEIRA importação: inicializa o agente Datadog (dd-trace)
+// antes de qualquer outro módulo para capturar toda a instrumentação.
+import './tracing';
 
-// Inicializa a coleta de dados de telemetria
-otelSDK.start();
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { Logger } from 'nestjs-pino';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, { bufferLogs: true });
+
+  app.useLogger(app.get(Logger));
 
   app.useGlobalPipes(
     new ValidationPipe({
@@ -23,7 +26,10 @@ async function bootstrap() {
   const config = new DocumentBuilder()
     .setTitle('Oficina Mecânica API')
     .setDescription(
-      'API do sistema de gestão para oficina mecânica - MVP acadêmico',
+      'API do sistema de gestão para oficina mecânica.\n\n' +
+        '**Autenticação:** clientes obtêm JWT via Lambda (auth por CPF); ' +
+        'staff (ADMIN/ATENDENTE/MECANICO) usa POST /auth/login. ' +
+        'Ver docs/rfc/RFC-003.',
     )
     .setVersion('1.0')
     .addBearerAuth()

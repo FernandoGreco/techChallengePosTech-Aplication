@@ -62,6 +62,25 @@ describe('BuscarOrdemServicoPorIdUseCase', () => {
       NotFoundException,
     );
   });
+
+  it('deve permitir cliente consultar a própria OS', async () => {
+    const os = makeOS(StatusOS.RECEBIDA, { clienteId: 'cliente-1' });
+    repository.findById.mockResolvedValue(os);
+
+    await expect(
+      useCase.execute('os1', { id: 'cliente-1', tipo: 'cliente' }),
+    ).resolves.toBe(os);
+  });
+
+  it('não deve revelar OS pertencente a outro cliente', async () => {
+    repository.findById.mockResolvedValue(
+      makeOS(StatusOS.RECEBIDA, { clienteId: 'cliente-dono' }),
+    );
+
+    await expect(
+      useCase.execute('os1', { id: 'outro-cliente', tipo: 'cliente' }),
+    ).rejects.toThrow(NotFoundException);
+  });
 });
 
 // ─── ConsultarStatusOSUseCase ─────────────────────────────────────────────────

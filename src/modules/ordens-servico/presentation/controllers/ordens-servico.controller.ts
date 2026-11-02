@@ -1,4 +1,12 @@
-import { Controller, Get, Post, Body, Param } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Param,
+  Header,
+  Req,
+} from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
@@ -6,6 +14,8 @@ import {
   ApiBearerAuth,
 } from '@nestjs/swagger';
 import { Public } from '../../../auth/domain/decorators/public.decorator';
+import { Roles } from '../../../auth/domain/decorators/roles.decorator';
+import { IAuthenticatedUser } from '../../../auth/domain/jwt-payload.types';
 import { CreateOrdemServicoDto } from '../../application/dto/create-ordem-servico.dto';
 import { AddServicoOSDto } from '../../application/dto/add-servico-os.dto';
 import { AddPecaOSDto } from '../../application/dto/add-peca-os.dto';
@@ -24,6 +34,7 @@ import { RecusarOrcamentoUseCase } from '../../application/use-cases/recusar-orc
 import { IniciarExecucaoUseCase } from '../../application/use-cases/iniciar-execucao.use-case';
 import { FinalizarOSUseCase } from '../../application/use-cases/finalizar-os.use-case';
 import { EntregarOSUseCase } from '../../application/use-cases/entregar-os.use-case';
+import { OrcamentoActionTokenService } from '../../infrastructure/services/orcamento-action-token.service';
 
 @ApiTags('Ordens de Serviço')
 @Controller('ordens-servico')
@@ -43,6 +54,7 @@ export class OrdensServicoController {
     private readonly iniciarExecucao: IniciarExecucaoUseCase,
     private readonly finalizarOSUseCase: FinalizarOSUseCase,
     private readonly entregarOSUseCase: EntregarOSUseCase,
+    private readonly actionTokens: OrcamentoActionTokenService,
   ) {}
 
   @ApiBearerAuth()
@@ -65,13 +77,17 @@ export class OrdensServicoController {
     return this.listarOS.execute();
   }
 
+  @Roles('cliente', 'staff')
   @ApiBearerAuth()
   @Get(':id')
   @ApiOperation({ summary: 'Buscar ordem de serviço por ID' })
   @ApiResponse({ status: 200, description: 'OS encontrada' })
   @ApiResponse({ status: 404, description: 'OS não encontrada' })
-  buscarPorId(@Param('id') id: string) {
-    return this.buscarOSPorId.execute(id);
+  buscarPorId(
+    @Param('id') id: string,
+    @Req() request: { user: IAuthenticatedUser },
+  ) {
+    return this.buscarOSPorId.execute(id, request.user);
   }
 
   @Public()
@@ -127,32 +143,55 @@ export class OrdensServicoController {
   }
 
   @Public()
+  @Get(':id/aprovar-orcamento')
+  @Header('Content-Type', 'text/html; charset=utf-8')
+  @ApiOperation({ summary: 'Exibir confirmação de aprovação do orçamento' })
+  confirmarAprovacaoOrcamento(): string {
+    return this.paginaConfirmacao('aprovar');
+  }
+
+  @Public()
   @Post(':id/aprovar-orcamento')
   @ApiOperation({
     summary: 'Aprovar orçamento da OS',
     description:
-      'Endpoint público para notificações externas de aprovação do cliente.',
+      'Confirma a aprovação com o token assinado enviado por e-mail.',
   })
   @ApiResponse({
     status: 200,
     description: 'Orçamento aprovado — OS movida para EM_EXECUCAO',
   })
-  aprovarOrcamentoOS(@Param('id') id: string) {
+  aprovarOrcamentoOS(
+    @Param('id') id: string,
+    @Body('actionToken') actionToken: string,
+  ) {
+    this.actionTokens.verify(actionToken, id, 'aprovar');
     return this.aprovarOrcamento.execute(id);
+  }
+
+  @Public()
+  @Get(':id/recusar-orcamento')
+  @Header('Content-Type', 'text/html; charset=utf-8')
+  @ApiOperation({ summary: 'Exibir confirmação de recusa do orçamento' })
+  confirmarRecusaOrcamento(): string {
+    return this.paginaConfirmacao('recusar');
   }
 
   @Public()
   @Post(':id/recusar-orcamento')
   @ApiOperation({
     summary: 'Recusar orçamento da OS',
-    description:
-      'Endpoint público para notificações externas de recusa do cliente. OS retorna para EM_DIAGNOSTICO.',
+    description: 'Confirma a recusa com o token assinado enviado por e-mail.',
   })
   @ApiResponse({
     status: 200,
     description: 'Orçamento recusado — OS retornada para EM_DIAGNOSTICO',
   })
-  recusarOrcamentoOS(@Param('id') id: string) {
+  recusarOrcamentoOS(
+    @Param('id') id: string,
+    @Body('actionToken') actionToken: string,
+  ) {
+    this.actionTokens.verify(actionToken, id, 'recusar');
     return this.recusarOrcamento.execute(id);
   }
 
@@ -183,5 +222,30 @@ export class OrdensServicoController {
   })
   entregarOS(@Param('id') id: string) {
     return this.entregarOSUseCase.execute(id);
+  }
+
+  private paginaConfirmacao(action: 'aprovar' | 'recusar'): string {
+    const decisao = action === 'aprovar' ? 'aprovar' : 'recusar';
+    return `<!doctype html>
+<html lang="pt-BR">
+  <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Confirmar ${decisao} orçamento</title></head>
+  <body>
+    <main>
+      <h1>Confirmar ${decisao} orçamento</h1>
+      <p>Confirme a decisão para atualizar a ordem de serviço.</p>
+      <form method="post" action="">
+        <input type="hidden" name="actionToken" id="actionToken">
+        <button type="submit" id="confirmar" disabled>Confirmar ${decisao}</button>
+      </form>
+      <p id="erro" hidden>Este link está incompleto ou expirado. Solicite um novo orçamento.</p>
+    </main>
+    <script>
+      const token = window.location.hash.slice(1);
+      document.getElementById('actionToken').value = token;
+      document.getElementById('confirmar').disabled = token.length === 0;
+      document.getElementById('erro').hidden = token.length > 0;
+    </script>
+  </body>
+</html>`;
   }
 }

@@ -1,31 +1,19 @@
-import { NodeSDK } from '@opentelemetry/sdk-node';
-import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node';
-import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-proto';
-import { resourceFromAttributes } from '@opentelemetry/resources';
-import { ATTR_SERVICE_NAME } from '@opentelemetry/semantic-conventions';
+/**
+ * Bootstrap de observabilidade — Datadog APM (dd-trace).
+ *
+ * Deve ser importado ANTES de qualquer outro módulo no entrypoint (main.ts)
+ * para que a auto-instrumentação capture HTTP, Express, Prisma, etc.
+ *
+ * Sem DD_API_KEY/agente acessível (dev local, testes), o tracer opera em modo
+ * no-op: a aplicação funciona normalmente e nenhum dado é enviado.
+ */
+import tracer from 'dd-trace';
 
-const traceExporter = new OTLPTraceExporter({
-  url:
-    process.env.OTEL_EXPORTER_OTLP_ENDPOINT ||
-    'http://localhost:4318/v1/traces',
+tracer.init({
+  service: process.env.DD_SERVICE || 'oficina-mecanica-api',
+  env: process.env.DD_ENV || process.env.NODE_ENV || 'development',
+  version: process.env.DD_VERSION,
+  logInjection: true, // injeta dd.trace_id nos logs JSON (pino)
 });
 
-export const otelSDK = new NodeSDK({
-  resource: resourceFromAttributes({
-    [ATTR_SERVICE_NAME]: 'oficina-mecanica-api',
-  }),
-  traceExporter,
-  instrumentations: [
-    getNodeAutoInstrumentations({
-      '@opentelemetry/instrumentation-fs': { enabled: false },
-    }),
-  ],
-});
-
-process.on('SIGTERM', () => {
-  otelSDK
-    .shutdown()
-    .then(() => console.log('Tracing do OpenTelemetry finalizado com sucesso'))
-    .catch((error) => console.error('Erro ao finalizar Tracing', error))
-    .finally(() => process.exit(0));
-});
+export default tracer;
