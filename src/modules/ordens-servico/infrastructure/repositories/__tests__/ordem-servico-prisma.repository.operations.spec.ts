@@ -1,6 +1,7 @@
 import { NotFoundException } from '@nestjs/common';
 import { OrdemServicoPrismaRepository } from '../ordem-servico-prisma.repository';
 import { StatusOS } from '../../../domain/enums/status-os.enum';
+import { makeMetricsMock } from '../../../../../shared/metrics/__tests__/metrics.mock';
 
 const makeOSRecord = (
   id: string,
@@ -31,7 +32,7 @@ const makeOSRecord = (
 
 const makeTx = () => ({
   ordemServico: { create: jest.fn(), update: jest.fn(), findUnique: jest.fn() },
-  historicoStatusOS: { create: jest.fn() },
+  historicoStatusOS: { create: jest.fn(), findFirst: jest.fn() },
   orcamento: { create: jest.fn(), update: jest.fn() },
   servico: { findUnique: jest.fn() },
   peca: { findUnique: jest.fn(), update: jest.fn() },
@@ -51,7 +52,7 @@ const makePrisma = () => ({
   ordemServicoPeca: { create: jest.fn() },
   servico: { findUnique: jest.fn() },
   peca: { findUnique: jest.fn() },
-  historicoStatusOS: { create: jest.fn() },
+  historicoStatusOS: { create: jest.fn(), findFirst: jest.fn() },
   orcamento: { create: jest.fn(), update: jest.fn() },
   $transaction: jest.fn(),
 });
@@ -59,11 +60,13 @@ const makePrisma = () => ({
 describe('OrdemServicoPrismaRepository', () => {
   let prisma: ReturnType<typeof makePrisma>;
   let repository: OrdemServicoPrismaRepository;
+  let metrics: ReturnType<typeof makeMetricsMock>;
 
   beforeEach(() => {
     jest.clearAllMocks();
     prisma = makePrisma();
-    repository = new OrdemServicoPrismaRepository(prisma as any);
+    metrics = makeMetricsMock();
+    repository = new OrdemServicoPrismaRepository(prisma as any, metrics);
   });
 
   // ─── findById ──────────────────────────────────────────────────────────────
@@ -231,6 +234,36 @@ describe('OrdemServicoPrismaRepository', () => {
       });
 
       expect(prisma.$transaction).toHaveBeenCalled();
+    });
+
+    it('deve registrar a duração do status anterior após a transição', async () => {
+      const entradaStatus = new Date(Date.now() - 10_000);
+      prisma.historicoStatusOS.findFirst.mockResolvedValue({
+        createdAt: entradaStatus,
+      });
+      prisma.$transaction.mockResolvedValue([{}, {}]);
+      prisma.ordemServico.findUnique.mockResolvedValue(
+        makeOSRecord('os1', StatusOS.EM_DIAGNOSTICO),
+      );
+
+      await repository.transicionarStatus({
+        id: 'os1',
+        statusAnterior: StatusOS.RECEBIDA,
+        statusNovo: StatusOS.EM_DIAGNOSTICO,
+        observacao: 'Diagnóstico iniciado',
+      });
+
+      expect(metrics.osStatusTransition).toHaveBeenCalledWith(
+        StatusOS.RECEBIDA,
+        StatusOS.EM_DIAGNOSTICO,
+      );
+      expect(metrics.osTempoStatus).toHaveBeenCalledWith(
+        StatusOS.RECEBIDA,
+        expect.any(Number),
+      );
+      expect(metrics.osTempoStatus.mock.calls[0][1]).toBeGreaterThanOrEqual(
+        10_000,
+      );
     });
   });
 

@@ -1,8 +1,12 @@
 import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { DatabaseModule } from './shared/database';
+import { LoggingModule } from './shared/logging/logging.module';
+import { HealthModule } from './shared/health/health.module';
+import { MetricsModule } from './shared/metrics/metrics.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { JwtAuthGuard } from './modules/auth/infrastructure/jwt-auth.guard';
+import { RolesGuard } from './modules/auth/infrastructure/roles.guard';
 import { ClientesModule } from './modules/clientes/clientes.module';
 import { VeiculosModule } from './modules/veiculos/veiculos.module';
 import { ServicosModule } from './modules/servicos/servicos.module';
@@ -13,7 +17,10 @@ import { RelatoriosModule } from './modules/relatorios/relatorios.module';
 
 @Module({
   imports: [
+    LoggingModule,
     DatabaseModule,
+    HealthModule,
+    MetricsModule,
     AuthModule,
     ClientesModule,
     VeiculosModule,
@@ -27,6 +34,10 @@ import { RelatoriosModule } from './modules/relatorios/relatorios.module';
     {
       provide: APP_GUARD,
       useClass: JwtAuthGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: RolesGuard,
     },
   ],
 })

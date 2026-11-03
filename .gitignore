@@ -3,6 +3,7 @@ dist
 coverage
 .env
 .env.docker
+k8s/secret.local.yaml
 /generated/prisma
 *.tsbuildinfo
 

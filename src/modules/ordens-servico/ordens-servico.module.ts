@@ -1,10 +1,12 @@
 import { Module } from '@nestjs/common';
 import { DatabaseModule } from '../../shared/database';
+import { AuthModule } from '../auth/auth.module';
 import { OrdensServicoController } from './presentation/controllers/ordens-servico.controller';
 import { ORDEM_SERVICO_REPOSITORY } from './domain/repositories/ordem-servico.repository.interface';
 import { NOTIFICACAO_ORCAMENTO_SERVICE } from './domain/services/notificacao-orcamento.service.interface';
 import { OrdemServicoPrismaRepository } from './infrastructure/repositories/ordem-servico-prisma.repository';
 import { EmailNotificacaoOrcamentoService } from './infrastructure/services/email-notificacao-orcamento.service';
+import { OrcamentoActionTokenService } from './infrastructure/services/orcamento-action-token.service';
 import { CriarOrdemServicoUseCase } from './application/use-cases/criar-ordem-servico.use-case';
 import { ListarOrdensServicoUseCase } from './application/use-cases/listar-ordens-servico.use-case';
 import { BuscarOrdemServicoPorIdUseCase } from './application/use-cases/buscar-ordem-servico-por-id.use-case';
@@ -38,7 +40,7 @@ const useCases = [
 ];
 
 @Module({
-  imports: [DatabaseModule],
+  imports: [DatabaseModule, AuthModule],
   controllers: [OrdensServicoController],
   providers: [
     {
@@ -49,6 +51,7 @@ const useCases = [
       provide: NOTIFICACAO_ORCAMENTO_SERVICE,
       useClass: EmailNotificacaoOrcamentoService,
     },
+    OrcamentoActionTokenService,
     ...useCases,
   ],
   exports: useCases,

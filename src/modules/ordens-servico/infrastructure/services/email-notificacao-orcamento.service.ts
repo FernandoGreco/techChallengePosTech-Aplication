@@ -1,12 +1,19 @@
 import { Injectable, Logger } from '@nestjs/common';
 import * as nodemailer from 'nodemailer';
+import { MetricsService } from '../../../../shared/metrics/metrics.service';
 import { INotificacaoOrcamentoService } from '../../domain/services/notificacao-orcamento.service.interface';
 import { IOrdemServico } from '../../domain/entities/ordem-servico.entity';
+import { OrcamentoActionTokenService } from './orcamento-action-token.service';
 
 @Injectable()
 export class EmailNotificacaoOrcamentoService implements INotificacaoOrcamentoService {
   private readonly logger = new Logger(EmailNotificacaoOrcamentoService.name);
   private transporterPromise: Promise<nodemailer.Transporter> | null = null;
+
+  constructor(
+    private readonly metrics: MetricsService,
+    private readonly actionTokens: OrcamentoActionTokenService,
+  ) {}
 
   /**
    * Cria o transporter sob demanda (lazy). Se SMTP_USER/SMTP_PASS não estiverem
@@ -22,12 +29,17 @@ export class EmailNotificacaoOrcamentoService implements INotificacaoOrcamentoSe
   }
 
   private async criarTransporter(): Promise<nodemailer.Transporter> {
+    const isProduction = process.env.NODE_ENV === 'production';
     let host = process.env.SMTP_HOST || 'smtp.ethereal.email';
     let port = Number(process.env.SMTP_PORT) || 587;
     let user = process.env.SMTP_USER || '';
     let pass = process.env.SMTP_PASS || '';
 
     if (!user || !pass) {
+      if (isProduction) {
+        throw new Error('SMTP_USER e SMTP_PASS são obrigatórios em produção');
+      }
+
       const testAccount = await nodemailer.createTestAccount();
       host = testAccount.smtp.host;
       port = testAccount.smtp.port;
@@ -43,7 +55,7 @@ export class EmailNotificacaoOrcamentoService implements INotificacaoOrcamentoSe
     // falha de handshake TLS. SMTP_TLS_REJECT_UNAUTHORIZED=false contorna isso
     // apenas em ambiente de desenvolvimento — nunca desabilitar em produção.
     const rejectUnauthorized =
-      process.env.SMTP_TLS_REJECT_UNAUTHORIZED !== 'false';
+      isProduction || process.env.SMTP_TLS_REJECT_UNAUTHORIZED !== 'false';
 
     return nodemailer.createTransport({
       host,
@@ -67,24 +79,34 @@ export class EmailNotificacaoOrcamentoService implements INotificacaoOrcamentoSe
       return;
     }
 
-    const appUrl = process.env.APP_URL || 'http://localhost:3000';
-    const urlAprovar = `${appUrl}/ordens-servico/${os.id}/aprovar-orcamento`;
-    const urlRecusar = `${appUrl}/ordens-servico/${os.id}/recusar-orcamento`;
-
-    const html = this.montarHtmlOrcamento(
-      os,
-      valorTotal,
-      urlAprovar,
-      urlRecusar,
-    );
-
-    const transporter = await this.getTransporter();
-    const info = await transporter.sendMail({
-      from: this.montarRemetente(),
-      to: emailCliente,
-      subject: `[OS #${os.numero}] Orçamento pronto — aguardando sua aprovação`,
-      html,
-    });
+    let info: nodemailer.SentMessageInfo;
+    try {
+      const appUrl =
+        process.env.APP_URL || `http://localhost:${process.env.PORT || '3000'}`;
+      if (process.env.NODE_ENV === 'production' && !process.env.APP_URL) {
+        throw new Error('APP_URL é obrigatório em produção');
+      }
+      const tokenAprovar = this.actionTokens.create(os.id, 'aprovar');
+      const tokenRecusar = this.actionTokens.create(os.id, 'recusar');
+      const urlAprovar = `${appUrl}/ordens-servico/${os.id}/aprovar-orcamento#${tokenAprovar}`;
+      const urlRecusar = `${appUrl}/ordens-servico/${os.id}/recusar-orcamento#${tokenRecusar}`;
+      const html = this.montarHtmlOrcamento(
+        os,
+        valorTotal,
+        urlAprovar,
+        urlRecusar,
+      );
+      const transporter = await this.getTransporter();
+      info = await transporter.sendMail({
+        from: this.montarRemetente(),
+        to: emailCliente,
+        subject: `[OS #${os.numero}] Orçamento pronto — aguardando sua aprovação`,
+        html,
+      });
+    } catch (error) {
+      this.metrics.integracaoEmailErro();
+      throw error;
+    }
 
     this.logger.log(
       `Email de orçamento enviado para ${emailCliente} | OS #${os.numero} | messageId: ${info.messageId}`,

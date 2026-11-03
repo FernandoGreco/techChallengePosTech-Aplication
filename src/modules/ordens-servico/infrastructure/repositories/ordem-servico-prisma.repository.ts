@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../../../shared/database';
+import { MetricsService } from '../../../../shared/metrics/metrics.service';
 import { StatusOS } from '../../domain/enums/status-os.enum';
 import {
   IOrdemServicoRepository,
@@ -36,7 +37,36 @@ const FULL_INCLUDE = {
 
 @Injectable()
 export class OrdemServicoPrismaRepository implements IOrdemServicoRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly metrics: MetricsService,
+  ) {}
+
+  private async registrarMetricasTransicao(
+    id: string,
+    statusAnterior: StatusOS,
+    statusNovo: StatusOS,
+  ): Promise<void> {
+    this.metrics.osStatusTransition(statusAnterior, statusNovo);
+
+    try {
+      const entradaStatus = await this.prisma.historicoStatusOS.findFirst({
+        where: { ordemServicoId: id, statusNovo: statusAnterior },
+        orderBy: { createdAt: 'desc' },
+        select: { createdAt: true },
+      });
+
+      if (entradaStatus?.createdAt instanceof Date) {
+        const duracaoMs = Math.max(
+          0,
+          Date.now() - entradaStatus.createdAt.getTime(),
+        );
+        this.metrics.osTempoStatus(statusAnterior, duracaoMs);
+      }
+    } catch {
+      // Métrica não pode interromper uma transição de negócio já concluída.
+    }
+  }
 
   async criar(input: ICriarOSInput): Promise<IOrdemServico> {
     const cliente = await this.prisma.cliente.findUnique({
@@ -242,6 +272,12 @@ export class OrdemServicoPrismaRepository implements IOrdemServicoRepository {
       }),
     ]);
 
+    await this.registrarMetricasTransicao(
+      input.id,
+      input.statusAnterior,
+      input.statusNovo,
+    );
+
     return this.findById(input.id);
   }
 
@@ -273,6 +309,12 @@ export class OrdemServicoPrismaRepository implements IOrdemServicoRepository {
         },
       });
     });
+
+    await this.registrarMetricasTransicao(
+      input.id,
+      StatusOS.EM_DIAGNOSTICO,
+      StatusOS.AGUARDANDO_APROVACAO,
+    );
 
     return this.findById(input.id);
   }
@@ -315,6 +357,12 @@ export class OrdemServicoPrismaRepository implements IOrdemServicoRepository {
       });
     });
 
+    await this.registrarMetricasTransicao(
+      input.id,
+      StatusOS.AGUARDANDO_APROVACAO,
+      StatusOS.EM_EXECUCAO,
+    );
+
     return this.findById(input.id);
   }
 
@@ -342,6 +390,12 @@ export class OrdemServicoPrismaRepository implements IOrdemServicoRepository {
         },
       });
     });
+
+    await this.registrarMetricasTransicao(
+      input.id,
+      StatusOS.AGUARDANDO_APROVACAO,
+      StatusOS.EM_DIAGNOSTICO,
+    );
 
     return this.findById(input.id);
   }
@@ -378,6 +432,12 @@ export class OrdemServicoPrismaRepository implements IOrdemServicoRepository {
         },
       });
     });
+
+    await this.registrarMetricasTransicao(
+      input.id,
+      StatusOS.EM_EXECUCAO,
+      StatusOS.FINALIZADA,
+    );
 
     return this.findById(input.id);
   }

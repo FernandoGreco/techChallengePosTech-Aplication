@@ -2,6 +2,13 @@ import { EmailNotificacaoOrcamentoService } from '../email-notificacao-orcamento
 import * as nodemailer from 'nodemailer';
 import { StatusOS } from '../../../domain/enums/status-os.enum';
 import { IOrdemServico } from '../../../domain/entities/ordem-servico.entity';
+import { makeMetricsMock } from '../../../../../shared/metrics/__tests__/metrics.mock';
+
+const makeActionTokensMock = () => ({
+  create: jest.fn((_osId: string, action: 'aprovar' | 'recusar') =>
+    action === 'aprovar' ? 'signed-approve-token' : 'signed-reject-token',
+  ),
+});
 
 jest.mock('nodemailer');
 
@@ -60,7 +67,10 @@ describe('EmailNotificacaoOrcamentoService', () => {
     mockCreateTransport = nodemailer.createTransport as jest.Mock;
     mockCreateTransport.mockReturnValue({ sendMail: mockSendMail });
 
-    service = new EmailNotificacaoOrcamentoService();
+    service = new EmailNotificacaoOrcamentoService(
+      makeMetricsMock(),
+      makeActionTokensMock() as any,
+    );
   });
 
   afterEach(() => {
@@ -81,8 +91,12 @@ describe('EmailNotificacaoOrcamentoService', () => {
     await service.notificarOrcamentoPendente(makeOS('joao@test.com'), 350.0);
 
     const args = mockSendMail.mock.calls[0][0];
-    expect(args.html).toContain('/ordens-servico/os-uuid/aprovar-orcamento');
-    expect(args.html).toContain('/ordens-servico/os-uuid/recusar-orcamento');
+    expect(args.html).toContain(
+      '/ordens-servico/os-uuid/aprovar-orcamento#signed-approve-token',
+    );
+    expect(args.html).toContain(
+      '/ordens-servico/os-uuid/recusar-orcamento#signed-reject-token',
+    );
   });
 
   it('deve incluir o valor total no body do email', async () => {
@@ -94,7 +108,10 @@ describe('EmailNotificacaoOrcamentoService', () => {
 
   it('deve usar remetente padrão quando SMTP_FROM não está configurado', async () => {
     delete process.env.SMTP_FROM;
-    const serviceComFromPadrao = new EmailNotificacaoOrcamentoService();
+    const serviceComFromPadrao = new EmailNotificacaoOrcamentoService(
+      makeMetricsMock(),
+      makeActionTokensMock() as any,
+    );
 
     await serviceComFromPadrao.notificarOrcamentoPendente(
       makeOS('joao@test.com'),
@@ -110,7 +127,10 @@ describe('EmailNotificacaoOrcamentoService', () => {
 
   it('deve montar remetente corretamente quando SMTP_FROM é um email puro (sem aspas/nome)', async () => {
     process.env.SMTP_FROM = 'meuemail@gmail.com';
-    const serviceComEmailPuro = new EmailNotificacaoOrcamentoService();
+    const serviceComEmailPuro = new EmailNotificacaoOrcamentoService(
+      makeMetricsMock(),
+      makeActionTokensMock() as any,
+    );
 
     await serviceComEmailPuro.notificarOrcamentoPendente(
       makeOS('joao@test.com'),
@@ -126,7 +146,10 @@ describe('EmailNotificacaoOrcamentoService', () => {
 
   it('deve montar remetente corretamente quando SMTP_FROM tem nome e email formatados', async () => {
     process.env.SMTP_FROM = 'Minha Oficina <contato@minhaoficina.com>';
-    const serviceComNomeEEmail = new EmailNotificacaoOrcamentoService();
+    const serviceComNomeEEmail = new EmailNotificacaoOrcamentoService(
+      makeMetricsMock(),
+      makeActionTokensMock() as any,
+    );
 
     await serviceComNomeEEmail.notificarOrcamentoPendente(
       makeOS('joao@test.com'),
@@ -165,7 +188,10 @@ describe('EmailNotificacaoOrcamentoService', () => {
       smtp: { host: 'smtp.ethereal.email', port: 587 },
     });
 
-    const serviceSemCredenciais = new EmailNotificacaoOrcamentoService();
+    const serviceSemCredenciais = new EmailNotificacaoOrcamentoService(
+      makeMetricsMock(),
+      makeActionTokensMock() as any,
+    );
     await serviceSemCredenciais.notificarOrcamentoPendente(
       makeOS('joao@test.com'),
       100,
@@ -176,6 +202,47 @@ describe('EmailNotificacaoOrcamentoService', () => {
       expect.objectContaining({
         auth: { user: 'ethereal-user', pass: 'ethereal-pass' },
       }),
+    );
+  });
+
+  it('deve falhar em produção sem SMTP e registrar erro de integração', async () => {
+    process.env.NODE_ENV = 'production';
+    process.env.APP_URL = 'https://api.example.com';
+    process.env.SMTP_USER = '';
+    process.env.SMTP_PASS = '';
+    const metrics = makeMetricsMock();
+    const serviceSemSmtpEmProducao = new EmailNotificacaoOrcamentoService(
+      metrics,
+      makeActionTokensMock() as any,
+    );
+
+    await expect(
+      serviceSemSmtpEmProducao.notificarOrcamentoPendente(
+        makeOS('cliente@example.com'),
+        100,
+      ),
+    ).rejects.toThrow('SMTP_USER e SMTP_PASS são obrigatórios em produção');
+
+    expect(nodemailer.createTestAccount).not.toHaveBeenCalled();
+    expect(metrics.integracaoEmailErro).toHaveBeenCalledTimes(1);
+  });
+
+  it('deve manter validação TLS obrigatória em produção', async () => {
+    process.env.NODE_ENV = 'production';
+    process.env.APP_URL = 'https://api.example.com';
+    process.env.SMTP_TLS_REJECT_UNAUTHORIZED = 'false';
+    const serviceEmProducao = new EmailNotificacaoOrcamentoService(
+      makeMetricsMock(),
+      makeActionTokensMock() as any,
+    );
+
+    await serviceEmProducao.notificarOrcamentoPendente(
+      makeOS('cliente@example.com'),
+      100,
+    );
+
+    expect(mockCreateTransport).toHaveBeenCalledWith(
+      expect.objectContaining({ tls: { rejectUnauthorized: true } }),
     );
   });
 
@@ -190,7 +257,10 @@ describe('EmailNotificacaoOrcamentoService', () => {
   it('deve permitir desabilitar validação de certificado TLS via env var (redes corporativas)', async () => {
     process.env.SMTP_TLS_REJECT_UNAUTHORIZED = 'false';
 
-    const serviceComTlsFlexivel = new EmailNotificacaoOrcamentoService();
+    const serviceComTlsFlexivel = new EmailNotificacaoOrcamentoService(
+      makeMetricsMock(),
+      makeActionTokensMock() as any,
+    );
     await serviceComTlsFlexivel.notificarOrcamentoPendente(
       makeOS('joao@test.com'),
       100,

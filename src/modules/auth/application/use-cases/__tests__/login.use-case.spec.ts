@@ -32,6 +32,7 @@ describe('LoginUseCase', () => {
       sub: 'user-1',
       email: 'admin@test.com',
       papel: 'ADMIN',
+      iss: 'oficina-staff',
     });
   });
 

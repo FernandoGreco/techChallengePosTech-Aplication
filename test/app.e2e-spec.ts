@@ -4,6 +4,8 @@ import * as request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/shared/database';
 import * as bcrypt from 'bcryptjs';
+import { NOTIFICACAO_ORCAMENTO_SERVICE } from '../src/modules/ordens-servico/domain/services/notificacao-orcamento.service.interface';
+import { OrcamentoActionTokenService } from '../src/modules/ordens-servico/infrastructure/services/orcamento-action-token.service';
 
 describe('Oficina Mecânica API (e2e)', () => {
   let app: INestApplication;
@@ -13,7 +15,10 @@ describe('Oficina Mecânica API (e2e)', () => {
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
-    }).compile();
+    })
+      .overrideProvider(NOTIFICACAO_ORCAMENTO_SERVICE)
+      .useValue({ notificarOrcamentoPendente: jest.fn() })
+      .compile();
 
     app = moduleFixture.createNestApplication();
     app.useGlobalPipes(
@@ -234,8 +239,13 @@ describe('Oficina Mecânica API (e2e)', () => {
     });
 
     it('deve aprovar orçamento (rota pública)', async () => {
+      const actionToken = app
+        .get(OrcamentoActionTokenService)
+        .create(ordemServicoId, 'aprovar');
+
       const response = await request(app.getHttpServer())
         .post(`/ordens-servico/${ordemServicoId}/aprovar-orcamento`)
+        .send({ actionToken })
         .expect(201);
 
       expect(response.body.status).toBe('EM_EXECUCAO');

@@ -31,6 +31,7 @@ export class LoginUseCase {
       sub: usuario.id,
       email: usuario.email,
       papel: usuario.papel,
+      iss: 'oficina-staff',
     };
 
     const accessToken = this.jwtService.sign(payload);
