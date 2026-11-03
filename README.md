@@ -12,12 +12,12 @@ Datadog e autenticação via Lambda (clientes, por CPF) + staff interno.
 
 ### Os 4 repositórios do grupo
 
-| Repo | Escopo | Status |
-|---|---|---|
-| [techChallengePosTech-auth](https://github.com/FernandoGreco/techChallengePosTech-auth) | Lambda de auth por CPF + API Gateway (repo 1) | em desenvolvimento |
-| [techChallengePosTech-k8s-infra](https://github.com/FernandoGreco/techChallengePosTech-k8s-infra) | Cluster K8s (Terraform, EC2, kubeadm) | em desenvolvimento |
-| [techChallengePosTech-db-infra](https://github.com/FernandoGreco/techChallengePosTech-db-infra) | Aurora PostgreSQL (Terraform) | provisionamento externo |
-| **techChallengePosTech-Aplication** | **API + K8s manifests + CI/CD (este repo)** | **em desenvolvimento** |
+| Repo | Escopo |
+|---|---|
+| [techChallengePosTech-auth](https://github.com/FernandoGreco/techChallengePosTech-auth) | Lambda de auth por CPF + API Gateway (repo 1) 
+| [techChallengePosTech-k8s-infra](https://github.com/FernandoGreco/techChallengePosTech-k8s-infra) | Cluster K8s (Terraform, EC2, kubeadm) 
+| [techChallengePosTech-db-infra](https://github.com/FernandoGreco/techChallengePosTech-db-infra) | Aurora PostgreSQL (Terraform) |
+| **techChallengePosTech-Aplication** | **API + K8s manifests + CI/CD (este repo)** 
 
 ## Arquitetura deste repositório
 
@@ -88,6 +88,35 @@ Para executar localmente o build de produção, com o mesmo banco e variáveis:
 npm run build
 npm run start:prod
 ```
+
+### Datadog local para demonstração
+
+O Agent local é opcional e não altera o deploy Kubernetes. Adicione a API key
+da sua conta Datadog ao `.env` local (arquivo ignorado pelo Git) e suba somente
+o Agent pelo Compose separado, sem iniciar o banco ou a aplicação do Compose:
+
+```powershell
+docker compose -f docker-compose.datadog.yml up -d
+```
+
+Em outro terminal PowerShell, inicie uma instância da API na porta `3003` para
+enviar traces e métricas DogStatsD ao Agent local:
+
+```powershell
+$env:DD_AGENT_HOST = '127.0.0.1'
+$env:DD_TRACE_AGENT_PORT = '8126'
+$env:DD_DOGSTATSD_PORT = '8125'
+$env:DD_SERVICE = 'oficina-mecanica-api'
+$env:DD_ENV = 'local-demo'
+$env:NODE_ENV = 'production'
+$env:PORT = '3003'
+node -r dotenv/config dist/main.js
+```
+
+Abra `http://localhost:3003/api/docs` e gere chamadas/OS de demonstração. Os
+traces e métricas da API aparecerão no Datadog; os logs JSON com correlação
+podem ser demonstrados no terminal. Esse Agent local não coleta métricas do
+cluster Kubernetes.
 
 O build gera `dist/main.js` e armazena o cache incremental dentro de `dist`,
 para que o Nest limpe ambos juntos antes de cada compilação.

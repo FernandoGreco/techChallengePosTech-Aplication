@@ -84,7 +84,8 @@ sequenceDiagram
         API->>API: valida assinatura, expiração, OS e ação
         API->>DB: reserva peças (valida estoque)
         API->>DB: status EM_EXECUCAO
-        API->>DD: status_transition; falha_estoque_insuficiente se erro
+        API->>DD: registra transição de status
+        API->>DD: registra falha de estoque se houver erro
     else cliente recusa
         Cliente->>Browser: clica no link assinado do e-mail
         Browser->>API: GET /ordens-servico/:id/recusar-orcamento
@@ -99,5 +100,6 @@ sequenceDiagram
     Staff->>API: entregar (ENTREGUE)
 ```
 
-Cada transição emite a métrica `oficina.os.status_transition` (tags `de`/`para`)
-para o Datadog — base do dashboard "tempo médio por status" (R9).
+A métrica `oficina.os.status_transition` conta as transições e inclui as tags
+`de` e `para`. A duração por status é enviada separadamente pela métrica
+histograma `oficina.os.tempo_status`, que alimenta o dashboard de tempo médio.
